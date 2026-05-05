@@ -7,6 +7,7 @@ import { ApiDocsTags, RAW_SECRETS } from "@app/lib/api-docs";
 import { AUDIT_LOG_SENSITIVE_VALUE } from "@app/lib/config/const";
 import { BadRequestError } from "@app/lib/errors";
 import { removeTrailingSlash } from "@app/lib/fn";
+import { parseEnvFileContent } from "@app/lib/parse-env-file";
 import { secretsLimit } from "@app/server/config/rateLimiter";
 import { BaseSecretNameSchema, SecretNameSchema } from "@app/server/lib/schemas";
 import { getTelemetryDistinctId } from "@app/server/lib/telemetry";
@@ -1496,6 +1497,133 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
       });
 
       return message;
+    }
+  });
+
+  server.route({
+    method: "POST",
+    url: "/import-env-file",
+    config: {
+      rateLimit: secretsLimit
+    },
+    schema: {
+      hide: false,
+      operationId: "importEnvFileSecretsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Import secrets from a raw .env file payload",
+      security: [
+        {
+          bearerAuth: []
+        }
+      ],
+      body: z.object({
+        projectId: z.string().trim().describe(RAW_SECRETS.UPDATE.projectId),
+        environment: z.string().trim().describe(RAW_SECRETS.CREATE.environment),
+        secretPath: z
+          .string()
+          .trim()
+          .default("/")
+          .transform(removeTrailingSlash)
+          .describe(RAW_SECRETS.CREATE.secretPath),
+        envFileContent: z
+          .string()
+          .min(1, "envFileContent must not be empty")
+          .max(1_000_000, "envFileContent must not exceed 1,000,000 characters")
+          .describe("Raw contents of a .env file (KEY=VALUE pairs, one per line).")
+      }),
+      response: {
+        200: z.union([
+          z.object({
+            secrets: secretRawSchema.array(),
+            importedCount: z.number()
+          }),
+          z.object({ approval: SecretApprovalRequestsSchema }).describe("When secret protection policy is enabled")
+        ])
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.SERVICE_TOKEN, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { environment, secretPath, envFileContent } = req.body;
+
+      const parsed = parseEnvFileContent(envFileContent);
+      if (parsed.length === 0) {
+        throw new BadRequestError({ message: "No valid KEY=VALUE entries were found in envFileContent" });
+      }
+
+      const inputSecrets = parsed.map((entry) => ({
+        secretKey: entry.key,
+        secretValue: entry.value,
+        secretComment: entry.comments.join("\n")
+      }));
+
+      const secretOperation = await server.services.secret.createManySecretsRaw({
+        actorId: req.permission.id,
+        actor: req.permission.type,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        secretPath,
+        environment,
+        projectId: req.body.projectId,
+        secrets: inputSecrets
+      });
+
+      if (secretOperation.type === SecretProtectionType.Approval) {
+        await server.services.auditLog.createAuditLog({
+          projectId: req.body.projectId,
+          ...req.auditLogInfo,
+          event: {
+            type: EventType.SECRET_APPROVAL_REQUEST,
+            metadata: {
+              committedBy: secretOperation.approval.committerUserId,
+              secretApprovalRequestId: secretOperation.approval.id,
+              secretApprovalRequestSlug: secretOperation.approval.slug,
+              secretPath,
+              environment,
+              secrets: inputSecrets.map((secret) => ({
+                secretKey: secret.secretKey
+              })),
+              eventType: SecretApprovalEvent.CreateMany
+            }
+          }
+        });
+        return { approval: secretOperation.approval };
+      }
+
+      const { secrets } = secretOperation;
+
+      await server.services.auditLog.createAuditLog({
+        projectId: req.body.projectId,
+        ...req.auditLogInfo,
+        event: {
+          type: EventType.CREATE_SECRETS,
+          metadata: {
+            environment,
+            secretPath,
+            secrets: secrets.map((secret) => ({
+              secretId: secret.id,
+              secretKey: secret.secretKey,
+              secretVersion: secret.version
+            }))
+          }
+        }
+      });
+
+      await server.services.telemetry.sendPostHogEvents({
+        event: PostHogEventTypes.SecretCreated,
+        distinctId: getTelemetryDistinctId(req),
+        organizationId: req.permission.orgId,
+        properties: {
+          numberOfSecrets: secrets.length,
+          projectId: req.body.projectId,
+          environment,
+          secretPath,
+          channel: getUserAgentType(req.headers["user-agent"]),
+          ...req.auditLogInfo,
+          actorType: req.permission.type
+        }
+      });
+
+      return { secrets, importedCount: secrets.length };
     }
   });
 };
