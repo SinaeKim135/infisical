@@ -20,6 +20,7 @@ export type TUpdateFolderDTO = {
   id: string;
   name: string;
   description?: string | null;
+  allowedCidrs?: string[] | null;
 } & TProjectPermission;
 
 export type TUpdateManyFoldersDTO = {

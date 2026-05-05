@@ -411,7 +411,8 @@ export const secretFolderServiceFactory = ({
     environment,
     path: secretPath,
     id,
-    description
+    description,
+    allowedCidrs
   }: TUpdateFolderDTO) => {
     const { permission } = await permissionService.getProjectPermission({
       actor,
@@ -474,7 +475,7 @@ export const secretFolderServiceFactory = ({
 
       const [doc] = await folderDAL.update(
         { envId: env.id, id: folder.id, parentId: parentFolder.id, isReserved: false },
-        { name, description },
+        { name, description, ...(allowedCidrs !== undefined ? { allowedCidrs } : {}) },
         tx
       );
       const folderVersion = await folderVersionDAL.create(

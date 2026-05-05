@@ -135,7 +135,16 @@ export const registerSecretFolderRouter = async (server: FastifyZodProvider) => 
           .transform(prefixWithSlash) // Transformations get skipped if path is undefined
           .transform(removeTrailingSlash)
           .describe(FOLDERS.UPDATE.path),
-        description: z.string().optional().nullable().describe(FOLDERS.UPDATE.description)
+        description: z.string().optional().nullable().describe(FOLDERS.UPDATE.description),
+        allowedCidrs: z
+          .string()
+          .array()
+          .max(64, "allowedCidrs must contain at most 64 entries")
+          .optional()
+          .nullable()
+          .describe(
+            "Restrict access to secrets in this folder to the listed IPv4/IPv6 addresses or CIDR ranges. Pass null/empty to remove the restriction."
+          )
       }),
       response: {
         200: z.object({
