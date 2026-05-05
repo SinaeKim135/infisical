@@ -463,6 +463,7 @@ import { userAliasDALFactory } from "@app/services/user-alias/user-alias-dal";
 import { userEngagementServiceFactory } from "@app/services/user-engagement/user-engagement-service";
 import { webAuthnCredentialDALFactory } from "@app/services/webauthn/webauthn-credential-dal";
 import { webAuthnServiceFactory } from "@app/services/webauthn/webauthn-service";
+import { webhookAttemptDALFactory } from "@app/services/webhook/webhook-attempt-dal";
 import { webhookDALFactory } from "@app/services/webhook/webhook-dal";
 import { webhookServiceFactory } from "@app/services/webhook/webhook-service";
 import { workflowIntegrationDALFactory } from "@app/services/workflow-integration/workflow-integration-dal";
@@ -552,6 +553,7 @@ export const registerRoutes = async (
   const offlineUsageReportDAL = offlineUsageReportDALFactory(db);
   const integrationAuthDAL = integrationAuthDALFactory(db);
   const webhookDAL = webhookDALFactory(db);
+  const webhookAttemptDAL = webhookAttemptDALFactory(db);
   const serviceTokenDAL = serviceTokenDALFactory(db);
 
   const identityDAL = identityDALFactory(db);
@@ -1525,6 +1527,7 @@ export const registerRoutes = async (
     secretImportDAL,
     projectEnvDAL,
     webhookDAL,
+    webhookAttemptDAL,
     auditLogService,
     identityDAL,
     userDAL,
@@ -1632,6 +1635,7 @@ export const registerRoutes = async (
   const webhookService = webhookServiceFactory({
     permissionService,
     webhookDAL,
+    webhookAttemptDAL,
     projectEnvDAL,
     projectDAL,
     kmsService

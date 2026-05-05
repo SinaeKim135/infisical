@@ -12,6 +12,7 @@ import { TKmsServiceFactory } from "../kms/kms-service";
 import { KmsDataKey } from "../kms/kms-types";
 import { TProjectDALFactory } from "../project/project-dal";
 import { TProjectEnvDALFactory } from "../project-env/project-env-dal";
+import { TWebhookAttemptDALFactory } from "./webhook-attempt-dal";
 import { TWebhookDALFactory } from "./webhook-dal";
 import { decryptWebhookDetails, getWebhookPayload, triggerWebhookRequest } from "./webhook-fns";
 import {
@@ -27,6 +28,7 @@ import {
 
 type TWebhookServiceFactoryDep = {
   webhookDAL: TWebhookDALFactory;
+  webhookAttemptDAL: TWebhookAttemptDALFactory;
   projectEnvDAL: TProjectEnvDALFactory;
   projectDAL: Pick<TProjectDALFactory, "findById">;
   permissionService: Pick<TPermissionServiceFactory, "getProjectPermission">;
@@ -37,6 +39,7 @@ export type TWebhookServiceFactory = ReturnType<typeof webhookServiceFactory>;
 
 export const webhookServiceFactory = ({
   webhookDAL,
+  webhookAttemptDAL,
   projectEnvDAL,
   permissionService,
   projectDAL,
@@ -245,11 +248,126 @@ export const webhookServiceFactory = ({
     });
   };
 
+  const listWebhookAttempts = async ({
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod,
+    webhookId,
+    status,
+    limit = 50,
+    offset = 0
+  }: {
+    actor: TListWebhookDTO["actor"];
+    actorId: string;
+    actorOrgId: string;
+    actorAuthMethod: TListWebhookDTO["actorAuthMethod"];
+    webhookId: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const webhook = await webhookDAL.findById(webhookId);
+    if (!webhook) throw new NotFoundError({ message: `Webhook with ID '${webhookId}' not found` });
+
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId: webhook.projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.Any
+    });
+    ForbiddenError.from(permission).throwUnlessCan(ProjectPermissionActions.Read, ProjectPermissionSub.Webhooks);
+
+    const filter: { webhookId: string; status?: string } = { webhookId };
+    if (status) filter.status = status;
+
+    const attempts = await webhookAttemptDAL.find(filter, {
+      limit,
+      offset,
+      sort: [["createdAt", "desc"]]
+    });
+
+    return attempts;
+  };
+
+  const replayWebhookAttempt = async ({
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod,
+    webhookId,
+    attemptId
+  }: {
+    actor: TListWebhookDTO["actor"];
+    actorId: string;
+    actorOrgId: string;
+    actorAuthMethod: TListWebhookDTO["actorAuthMethod"];
+    webhookId: string;
+    attemptId: string;
+  }) => {
+    const webhook = await webhookDAL.findById(webhookId);
+    if (!webhook) throw new NotFoundError({ message: `Webhook with ID '${webhookId}' not found` });
+
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId: webhook.projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.Any
+    });
+    ForbiddenError.from(permission).throwUnlessCan(ProjectPermissionActions.Edit, ProjectPermissionSub.Webhooks);
+
+    const attempt = await webhookAttemptDAL.findById(attemptId);
+    if (!attempt || attempt.webhookId !== webhookId) {
+      throw new NotFoundError({ message: `Attempt '${attemptId}' not found for webhook '${webhookId}'` });
+    }
+
+    const payload = attempt.payload as Record<string, unknown> | null;
+    if (!payload) {
+      throw new BadRequestError({ message: "Attempt has no payload to replay" });
+    }
+
+    const { decryptor: secretManagerDecryptor } = await kmsService.createCipherPairWithDataKey({
+      type: KmsDataKey.SecretManager,
+      projectId: webhook.projectId
+    });
+
+    let statusCode: number | null = null;
+    let errorMessage: string | null = null;
+    try {
+      const res = await triggerWebhookRequest(
+        webhook,
+        (value) => secretManagerDecryptor({ cipherTextBlob: value }).toString(),
+        payload
+      );
+      statusCode = (res as { status?: number } | null)?.status ?? null;
+    } catch (err) {
+      errorMessage = (err as Error).message;
+    }
+    const isSuccess = !errorMessage;
+
+    const newAttempt = await webhookAttemptDAL.create({
+      webhookId,
+      status: isSuccess ? "success" : "failed",
+      attemptNumber: attempt.attemptNumber + 1,
+      statusCode,
+      errorMessage,
+      payload
+    });
+
+    return newAttempt;
+  };
+
   return {
     createWebhook,
     deleteWebhook,
     listWebhooks,
     updateWebhook,
-    testWebhook
+    testWebhook,
+    listWebhookAttempts,
+    replayWebhookAttempt
   };
 };

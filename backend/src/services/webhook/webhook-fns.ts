@@ -14,6 +14,7 @@ import { ActorType } from "@app/services/auth/auth-type";
 
 import { TProjectDALFactory } from "../project/project-dal";
 import { TProjectEnvDALFactory } from "../project-env/project-env-dal";
+import { TWebhookAttemptDALFactory } from "./webhook-attempt-dal";
 import { TWebhookDALFactory } from "./webhook-dal";
 import { TWebhookPayloads, WebhookEvents, WebhookType } from "./webhook-types";
 
@@ -274,6 +275,7 @@ export type TFnTriggerWebhookDTO = {
   environment: string;
   event: TWebhookPayloads;
   webhookDAL: Pick<TWebhookDALFactory, "findAllWebhooks" | "transaction" | "update" | "bulkUpdate">;
+  webhookAttemptDAL?: Pick<TWebhookAttemptDALFactory, "create">;
   projectEnvDAL: Pick<TProjectEnvDALFactory, "findOne">;
   projectDAL: Pick<TProjectDALFactory, "findById">;
   secretManagerDecryptor: (value: Buffer) => string;
@@ -287,6 +289,7 @@ export const fnTriggerWebhook = async ({
   secretPath,
   projectId,
   webhookDAL,
+  webhookAttemptDAL,
   projectEnvDAL,
   event,
   secretManagerDecryptor,
@@ -398,6 +401,29 @@ export const fnTriggerWebhook = async ({
         metadata: eventPayload
       }
     });
+  }
+
+  if (webhookAttemptDAL) {
+    await Promise.allSettled(
+      webhooksTriggered.map((result, i) => {
+        const hook = toBeTriggeredHooks[i];
+        const formattedEvent = {
+          type: event.type,
+          payload: { ...event.payload, type: hook.type, projectName }
+        } as TWebhookPayloads;
+        const recordedPayload = getWebhookPayload(formattedEvent);
+        const isSuccess = result.status === "fulfilled";
+        const errorMessage = result.status === "rejected" ? (result.reason as AxiosError).message : null;
+        return webhookAttemptDAL.create({
+          webhookId: hook.id,
+          status: isSuccess ? "success" : "failed",
+          attemptNumber: 1,
+          statusCode: null,
+          errorMessage,
+          payload: recordedPayload as unknown as Record<string, unknown>
+        });
+      })
+    );
   }
 
   logger.info({ environment, secretPath, projectId }, "Secret webhook job ended");

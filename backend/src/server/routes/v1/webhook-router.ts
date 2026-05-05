@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { WebhooksSchema } from "@app/db/schemas";
+import { WebhookAttemptsSchema, WebhooksSchema } from "@app/db/schemas";
 import { EventType } from "@app/ee/services/audit-log/audit-log-types";
 import { removeTrailingSlash } from "@app/lib/fn";
 import { readLimit, writeLimit } from "@app/server/config/rateLimiter";
@@ -298,6 +298,77 @@ export const registerWebhookRouter = async (server: FastifyZodProvider) => {
         projectId: req.query.projectId
       });
       return { message: "Successfully fetched webhook", webhooks };
+    }
+  });
+
+  server.route({
+    method: "GET",
+    url: "/:webhookId/attempts",
+    config: {
+      rateLimit: readLimit
+    },
+    onRequest: verifyAuth([AuthMode.JWT]),
+    schema: {
+      operationId: "listWebhookAttempts",
+      params: z.object({
+        webhookId: z.string().trim()
+      }),
+      querystring: z.object({
+        status: z.enum(["pending", "success", "failed", "dlq"]).optional(),
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        offset: z.coerce.number().int().min(0).default(0)
+      }),
+      response: {
+        200: z.object({
+          attempts: WebhookAttemptsSchema.array()
+        })
+      }
+    },
+    handler: async (req) => {
+      const attempts = await server.services.webhook.listWebhookAttempts({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        webhookId: req.params.webhookId,
+        status: req.query.status,
+        limit: req.query.limit,
+        offset: req.query.offset
+      });
+      return { attempts };
+    }
+  });
+
+  server.route({
+    method: "POST",
+    url: "/:webhookId/attempts/:attemptId/replay",
+    config: {
+      rateLimit: writeLimit
+    },
+    onRequest: verifyAuth([AuthMode.JWT]),
+    schema: {
+      operationId: "replayWebhookAttempt",
+      params: z.object({
+        webhookId: z.string().trim(),
+        attemptId: z.string().trim()
+      }),
+      response: {
+        200: z.object({
+          message: z.string(),
+          attempt: WebhookAttemptsSchema
+        })
+      }
+    },
+    handler: async (req) => {
+      const attempt = await server.services.webhook.replayWebhookAttempt({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        webhookId: req.params.webhookId,
+        attemptId: req.params.attemptId
+      });
+      return { message: "Successfully replayed webhook attempt", attempt };
     }
   });
 };
