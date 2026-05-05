@@ -47,7 +47,7 @@ export const registerSecretFolderRouter = async (server: FastifyZodProvider) => 
           .transform(prefixWithSlash) // Transformations get skipped if path is undefined
           .transform(removeTrailingSlash)
           .describe(FOLDERS.CREATE.path),
-        description: z.string().optional().nullable().describe(FOLDERS.CREATE.description)
+        description: z.string().max(500, "Description must not exceed 500 characters").optional().nullable().describe(FOLDERS.CREATE.description)
       }),
       response: {
         200: z.object({
@@ -135,7 +135,7 @@ export const registerSecretFolderRouter = async (server: FastifyZodProvider) => 
           .transform(prefixWithSlash) // Transformations get skipped if path is undefined
           .transform(removeTrailingSlash)
           .describe(FOLDERS.UPDATE.path),
-        description: z.string().optional().nullable().describe(FOLDERS.UPDATE.description)
+        description: z.string().max(500, "Description must not exceed 500 characters").optional().nullable().describe(FOLDERS.UPDATE.description)
       }),
       response: {
         200: z.object({
@@ -209,7 +209,7 @@ export const registerSecretFolderRouter = async (server: FastifyZodProvider) => 
               .transform(prefixWithSlash)
               .transform(removeTrailingSlash)
               .describe(FOLDERS.UPDATE.path),
-            description: z.string().optional().nullable().describe(FOLDERS.UPDATE.description)
+            description: z.string().max(500, "Description must not exceed 500 characters").optional().nullable().describe(FOLDERS.UPDATE.description)
           })
           .array()
           .min(1)
