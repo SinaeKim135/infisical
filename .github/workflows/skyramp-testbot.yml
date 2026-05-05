@@ -42,16 +42,34 @@ jobs:
           skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
           anthropicApiKey: ${{ secrets.SKYRAMP_TESTBOT_API_KEY }}
           githubToken: ${{ steps.app-token.outputs.token }}
-          # Bootstrap a fresh super-admin in the freshly-spawned Infisical instance and
-          # echo the returned access token. The token is signed by this CI run's
-          # AUTH_SECRET, so it only works against this run's API (which is what TestBot
-          # hits at localhost:4000). Static cloud/local tokens cannot work here because
-          # every CI run spawns a fresh DB + AUTH_SECRET.
+          # Mirror Infisical's own e2e bootstrap (backend/e2e-test/vitest-environment-knex.ts):
+          # 1) seed the dev fixtures so seedData1 user / org / token row exist
+          # 2) sign a JWT manually using AUTH_SECRET + the seedData1 IDs
+          # This works for every fresh CI run because the IDs are stable in seed-data.ts
+          # and AUTH_SECRET is set in the .env we wrote in targetSetupCommand. Static
+          # cloud/local tokens cannot work here because every run spawns a fresh DB.
           authTokenCommand: |
-            curl -sS -X POST http://localhost:4000/api/v1/admin/signup \
-              -H "Content-Type: application/json" \
-              -d '{"email":"testbot@skyramp.test","password":"Testbot1234!","firstName":"TestBot","lastName":"Skyramp"}' \
-              | jq -r .token
+            set -e
+            echo "=== Running dev seeds (seedData1 user + token + org) ===" >&2
+            docker compose -f docker-compose.dev.yml exec -T backend npm run seed-dev >&2
+            echo "=== Signing JWT for seedData1 ===" >&2
+            TOKEN=$(docker compose -f docker-compose.dev.yml exec -T backend node -e '
+              const jwt = require("jsonwebtoken");
+              const t = jwt.sign({
+                authTokenType: "accessToken",
+                userId: "3dafd81d-4388-432b-a4c5-f735616868c1",
+                tokenVersionId: "a9dfafba-a3b7-42e3-8618-91abb702fd36",
+                authMethod: "email",
+                organizationId: "180870b7-f464-4740-8ffe-9d11c9245ea7",
+                accessVersion: 1
+              }, process.env.AUTH_SECRET, { expiresIn: "7d" });
+              process.stdout.write(t);
+            ')
+            if [ -z "$TOKEN" ]; then
+              echo "ERROR: failed to obtain JWT" >&2
+              exit 1
+            fi
+            echo "$TOKEN"
           targetSetupCommand: |
             set -ex
             cat > .env << 'ENVEOF'
