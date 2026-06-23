@@ -24,9 +24,8 @@ jobs:
 
     steps:
       # Generate a GitHub App installation token to retrigger CI workflows on push
-      # https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow
       - name: Generate GitHub App Token
-        id: app-token
+        id: skyramp-testbot-app-token
         uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         with:
           app-id: ${{ secrets.SKYRAMP_TESTBOT_APP_ID }}
@@ -35,65 +34,27 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.skyramp-testbot-app-token.outputs.token }}
 
-      - uses: skyramp/testbot@bfaa88528a744ef6653a70eb51980b69d333b93b # v0.8.1
+      # Mirror Kolja's proven setup: full BDD stack (7 services) behind nginx on :8080,
+      # admin-bootstrap auth, and UI credentials for browser tests.
+      - name: Create .env for SUT
+        run: |
+          cp .env.dev.example .env
+          sed -i "s#ENCRYPTION_KEY=.*#ENCRYPTION_KEY=6c1fe4e407b8911c104518103505b218#" .env
+          sed -i "s#SMTP_HOST=.*#SMTP_HOST=#" .env
+          sed -i "s#SMTP_PORT=.*#SMTP_PORT=#" .env
+          sed -i "s#SMTP_FROM_ADDRESS=.*#SMTP_FROM_ADDRESS=#" .env
+          sed -i "s#SMTP_FROM_NAME=.*#SMTP_FROM_NAME=#" .env
+
+      - uses: skyramp/testbot@7054923f058e1fac3b92925fa475288c733cfea7 # v0.9.4
         with:
           skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
           anthropicApiKey: ${{ secrets.SKYRAMP_TESTBOT_API_KEY }}
-          githubToken: ${{ steps.app-token.outputs.token }}
-          # Mirror Infisical's own e2e bootstrap (backend/e2e-test/vitest-environment-knex.ts):
-          # 1) seed the dev fixtures so seedData1 user / org / token row exist
-          # 2) sign a JWT manually using AUTH_SECRET + the seedData1 IDs
-          # This works for every fresh CI run because the IDs are stable in seed-data.ts
-          # and AUTH_SECRET is set in the .env we wrote in targetSetupCommand. Static
-          # cloud/local tokens cannot work here because every run spawns a fresh DB.
-          authTokenCommand: |
-            set -e
-            echo "=== Running dev seeds (seedData1 user + token + org) ===" >&2
-            docker compose -f docker-compose.dev.yml exec -T backend npm run seed-dev >&2
-            echo "=== Signing JWT for seedData1 ===" >&2
-            TOKEN=$(docker compose -f docker-compose.dev.yml exec -T backend node -e '
-              const jwt = require("jsonwebtoken");
-              const t = jwt.sign({
-                authTokenType: "accessToken",
-                userId: "3dafd81d-4388-432b-a4c5-f735616868c1",
-                tokenVersionId: "a9dfafba-a3b7-42e3-8618-91abb702fd36",
-                authMethod: "email",
-                organizationId: "180870b7-f464-4740-8ffe-9d11c9245ea7",
-                accessVersion: 1
-              }, process.env.AUTH_SECRET, { expiresIn: "7d" });
-              process.stdout.write(t);
-            ')
-            if [ -z "$TOKEN" ]; then
-              echo "ERROR: failed to obtain JWT" >&2
-              exit 1
-            fi
-            echo "$TOKEN"
-          targetSetupCommand: |
-            set -ex
-            cat > .env << 'ENVEOF'
-            DB_CONNECTION_URI=postgres://infisical:infisical@db/infisical?sslmode=disable
-            REDIS_URL=redis://redis:6379
-            AUTH_SECRET=at-least-32-characters-long-secret-for-testing-purposes
-            ENCRYPTION_KEY=p5e5k2j3+HIErjm02dzSrlhXc1xhdgoWvC6pox410rE=
-            NODE_ENV=development
-            TELEMETRY_ENABLED=false
-            SITE_URL=http://localhost:4000
-            ENVEOF
-            docker compose -f docker-compose.dev.yml up -d --build backend
-            docker compose -f docker-compose.dev.yml ps
-          targetReadyCheckCommand: 'curl -sf http://localhost:4000/api/status'
-          targetReadyCheckTimeout: '600'
-          targetReadyCheckDiagnosticsCommand: |
-            echo "=== Backend container logs ==="
-            docker compose -f docker-compose.dev.yml logs backend --tail 200
-            echo ""
-            echo "=== All services status ==="
-            docker compose -f docker-compose.dev.yml ps
-            echo ""
-            echo "=== Port 4000 status ==="
-            ss -tlnp 2>/dev/null | grep 4000 || lsof -i :4000 2>/dev/null || echo "Port 4000 not bound"
-          targetTeardownCommand: |
-            docker compose -f docker-compose.dev.yml down -v
-          testDirectory: 'backend/tests'
+          githubToken: ${{ steps.skyramp-testbot-app-token.outputs.token }}
+          targetSetupCommand: 'docker compose -f docker-compose.bdd.yml up -d --build'
+          targetReadyCheckCommand: 'curl -sf http://localhost:8080/api/status && curl -sf http://localhost:8080 | grep -q "root"'
+          targetReadyCheckTimeout: '300'
+          authTokenCommand: 'curl -sf -X POST http://localhost:8080/api/v1/admin/bootstrap -H "Content-Type: application/json" -d "{\"email\":\"admin@test.com\",\"password\":\"Password123!\",\"organization\":\"TestOrg\"}" | jq -r ".identity.credentials.token"'
+          uiCredentials: 'username=admin@test.com;password=Password123!;role=admin'
+          targetTeardownCommand: 'docker compose -f docker-compose.bdd.yml down -v'
