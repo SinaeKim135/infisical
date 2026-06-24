@@ -2,7 +2,7 @@ name: Skyramp Testbot
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
   issue_comment:
     types: [created]
 
@@ -15,7 +15,7 @@ jobs:
     # Only run for pull_request events or issue_comment on PRs mentioning @skyramp-testbot
     if: >-
       github.event_name == 'pull_request' ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@skyramp-testbot'))
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@skyramp-testbot') && github.event.comment.user.login != 'skyramp-testbot[bot]')
     runs-on: 'ubuntu-latest'
     permissions:
       contents: write
@@ -26,28 +26,22 @@ jobs:
       # Generate a GitHub App installation token to retrigger CI workflows on push
       # https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow
       - name: Generate GitHub App Token
-        id: app-token
+        id: skyramp-testbot-app-token
         uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         with:
           app-id: ${{ secrets.SKYRAMP_TESTBOT_APP_ID }}
           private-key: ${{ secrets.SKYRAMP_TESTBOT_APP_PRIVATE_KEY }}
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.skyramp-testbot-app-token.outputs.token }}
 
-      - uses: skyramp/testbot@bfaa88528a744ef6653a70eb51980b69d333b93b # v0.8.1
+      - uses: skyramp/testbot@eb12da0e558fad795bfc9b39a60616de46efa853 # v0.10.4
         with:
           skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
           anthropicApiKey: ${{ secrets.SKYRAMP_TESTBOT_API_KEY }}
-          githubToken: ${{ steps.app-token.outputs.token }}
-          # Mirror Infisical's own e2e bootstrap (backend/e2e-test/vitest-environment-knex.ts):
-          # 1) seed the dev fixtures so seedData1 user / org / token row exist
-          # 2) sign a JWT manually using AUTH_SECRET + the seedData1 IDs
-          # This works for every fresh CI run because the IDs are stable in seed-data.ts
-          # and AUTH_SECRET is set in the .env we wrote in targetSetupCommand. Static
-          # cloud/local tokens cannot work here because every run spawns a fresh DB.
+          githubToken: ${{ steps.skyramp-testbot-app-token.outputs.token }}
           authTokenCommand: |
             set -e
             echo "=== Running dev seeds (seedData1 user + token + org) ===" >&2
@@ -96,4 +90,3 @@ jobs:
             ss -tlnp 2>/dev/null | grep 4000 || lsof -i :4000 2>/dev/null || echo "Port 4000 not bound"
           targetTeardownCommand: |
             docker compose -f docker-compose.dev.yml down -v
-          testDirectory: 'backend/tests'
