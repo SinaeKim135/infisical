@@ -11,6 +11,7 @@ import { dashboardKeys } from "@app/hooks/api/dashboard/queries";
 import { UsedBySecretSyncs } from "@app/hooks/api/dashboard/types";
 import { commitKeys } from "@app/hooks/api/folderCommits/queries";
 import { secretApprovalRequestKeys } from "@app/hooks/api/secretApprovalRequest/queries";
+import { useArchiveSecret } from "@app/hooks/api/secretArchive";
 import { PendingAction } from "@app/hooks/api/secretFolders/types";
 import { secretKeys } from "@app/hooks/api/secrets/queries";
 import { SecretType, SecretV3RawSanitized } from "@app/hooks/api/secrets/types";
@@ -86,6 +87,7 @@ export const SecretListView = ({
   const { mutateAsync: deleteSecretV3 } = useDeleteSecretV3({
     options: { onSuccess: undefined }
   });
+  const { mutateAsync: archiveSecret } = useArchiveSecret();
 
   const selectedSecrets = useSelectedSecrets();
   const { toggle: toggleSelectedSecret } = useSelectedSecretActions();
@@ -517,7 +519,15 @@ export const SecretListView = ({
       return;
     }
 
-    await handleSecretOperation("delete", SecretType.Shared, key, { secretId });
+    try {
+      await archiveSecret({ secretId, projectId, environment, secretPath });
+    } catch {
+      createNotification({
+        type: "error",
+        text: "Failed to archive secret"
+      });
+      return;
+    }
     // wrap this in another function and then reuse
     queryClient.invalidateQueries({
       queryKey: dashboardKeys.getDashboardSecrets({ projectId, secretPath })
@@ -554,10 +564,8 @@ export const SecretListView = ({
     handlePopUpClose("deleteSecret");
     handlePopUpClose("secretDetail");
     createNotification({
-      type: isProtectedBranch ? "info" : "success",
-      text: isProtectedBranch
-        ? "Requested changes have been sent for review"
-        : "Successfully deleted secret"
+      type: "success",
+      text: "Secret archived — you can restore it from the trash"
     });
   }, [
     (popUp.deleteSecret?.data as SecretV3RawSanitized)?.key,
@@ -566,7 +574,8 @@ export const SecretListView = ({
     isProtectedBranch,
     isBatchMode,
     projectId,
-    addPendingChange
+    addPendingChange,
+    archiveSecret
   ]);
 
   // for optimization on minimise re-rendering of secret items
@@ -627,10 +636,11 @@ export const SecretListView = ({
       <DeleteActionModal
         isOpen={popUp.deleteSecret.isOpen}
         deleteKey={(popUp.deleteSecret?.data as SecretV3RawSanitized)?.key}
-        title="Do you want to delete this secret?"
+        title="Do you want to archive this secret?"
+        subTitle="The secret will be moved to the trash. You can restore it at any time."
         onChange={(isOpen) => handlePopUpToggle("deleteSecret", isOpen)}
         onDeleteApproved={handleSecretDelete}
-        buttonText="Delete Secret"
+        buttonText="Archive Secret"
         formContent={
           ((importedBy && importedBy.length > 0) ||
             (usedBySecretSyncs && usedBySecretSyncs?.length > 0)) && (

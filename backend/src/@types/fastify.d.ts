@@ -142,6 +142,7 @@ import { TProjectKeyServiceFactory } from "@app/services/project-key/project-key
 import { TProjectMembershipServiceFactory } from "@app/services/project-membership/project-membership-service";
 import { TReminderServiceFactory } from "@app/services/reminder/reminder-types";
 import { TRoleServiceFactory } from "@app/services/role/role-service";
+import { TSecretArchiveServiceFactory } from "@app/services/secret-archive/secret-archive-service";
 import { TSecretServiceFactory } from "@app/services/secret/secret-service";
 import { TSecretBlindIndexServiceFactory } from "@app/services/secret-blind-index/secret-blind-index-service";
 import { TSecretFolderServiceFactory } from "@app/services/secret-folder/secret-folder-service";
@@ -276,6 +277,7 @@ declare module "fastify" {
       projectEnv: TProjectEnvServiceFactory;
       projectKey: TProjectKeyServiceFactory;
       secret: TSecretServiceFactory;
+      secretArchive: TSecretArchiveServiceFactory;
       secretReplication: TSecretReplicationServiceFactory;
       secretTag: TSecretTagServiceFactory;
       secretValidationRule: TSecretValidationRuleServiceFactory;

@@ -418,6 +418,8 @@ import { roleDALFactory } from "@app/services/role/role-dal";
 import { roleServiceFactory } from "@app/services/role/role-service";
 import { secretDALFactory } from "@app/services/secret/secret-dal";
 import { secretQueueFactory } from "@app/services/secret/secret-queue";
+import { secretArchiveDALFactory } from "@app/services/secret-archive/secret-archive-dal";
+import { secretArchiveServiceFactory } from "@app/services/secret-archive/secret-archive-service";
 import { secretServiceFactory } from "@app/services/secret/secret-service";
 import { secretVersionDALFactory } from "@app/services/secret/secret-version-dal";
 import { secretVersionTagDALFactory } from "@app/services/secret/secret-version-tag-dal";
@@ -528,6 +530,7 @@ export const registerRoutes = async (
   const projectSshConfigDAL = projectSshConfigDALFactory(db);
   const projectMembershipDAL = projectMembershipDALFactory(db);
   const projectEnvDAL = projectEnvDALFactory(db);
+  const secretArchiveDAL = secretArchiveDALFactory(db);
   const projectKeyDAL = projectKeyDALFactory(db);
   const projectBotDAL = projectBotDALFactory(db);
 
@@ -1734,6 +1737,11 @@ export const registerRoutes = async (
     folderCommitService,
     notificationService,
     telemetryService
+  });
+
+  const secretArchiveService = secretArchiveServiceFactory({
+    secretArchiveDAL,
+    permissionService
   });
 
   const secretService = secretServiceFactory({
@@ -3184,6 +3192,7 @@ export const registerRoutes = async (
     projectKey: projectKeyService,
     projectEnv: projectEnvService,
     secret: secretService,
+    secretArchive: secretArchiveService,
     secretReplication: secretReplicationService,
     secretTag: secretTagService,
     secretValidationRule: secretValidationRuleService,
