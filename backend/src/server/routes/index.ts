@@ -90,6 +90,7 @@ import { licenseDALFactory } from "@app/ee/services/license/license-dal";
 import { licenseServiceFactory } from "@app/ee/services/license/license-service";
 import { oidcConfigDALFactory } from "@app/ee/services/oidc/oidc-config-dal";
 import { oidcConfigServiceFactory } from "@app/ee/services/oidc/oidc-config-service";
+import { oidcGroupReconciliationQueueServiceFactory } from "@app/ee/services/oidc/oidc-group-reconciliation-queue";
 import { pamAccountDALFactory } from "@app/ee/services/pam-account/pam-account-dal";
 import { pamAccountServiceFactory } from "@app/ee/services/pam-account/pam-account-service";
 import { pamAccountPolicyDALFactory } from "@app/ee/services/pam-account-policy/pam-account-policy-dal";
@@ -2233,7 +2234,14 @@ export const registerRoutes = async (
     membershipGroupDAL,
     membershipRoleDAL,
     loginService,
-    emailDomainDAL
+    emailDomainDAL,
+    keyStore
+  });
+
+  const oidcGroupReconciliationQueue = oidcGroupReconciliationQueueServiceFactory({
+    queueService,
+    oidcConfigDAL,
+    oidcConfigService: oidcService
   });
 
   const userEngagementService = userEngagementServiceFactory({
@@ -3161,6 +3169,7 @@ export const registerRoutes = async (
   await digicertCaQueue.init();
   await caAutoRenewalQueue.startDailyAutoRenewalJob();
   await microsoftTeamsService.start();
+  await oidcGroupReconciliationQueue.init();
   await eventBusService.init();
 
   // inject all services
