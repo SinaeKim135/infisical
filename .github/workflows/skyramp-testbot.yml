@@ -54,7 +54,3 @@ jobs:
           authTokenCommand: 'curl -sf -X POST http://localhost:8080/api/v1/admin/bootstrap -H "Content-Type: application/json" -d "{\"email\":\"admin@test.com\",\"password\":\"Password123!\",\"organization\":\"TestOrg\"}" | jq -r ".identity.credentials.token"'
           uiCredentials: 'username=admin@test.com;password=Password123!;role=admin'
           targetTeardownCommand: 'docker compose -f docker-compose.bdd.yml down -v'
-          # Skip committing generated tests / side PR. The side-PR git step fails on
-          # root-owned Playwright video files (.skyramp/videos/*.webm → Permission denied).
-          # Tests are still generated + executed and the report comment is still posted.
-          autoCommit: 'false'
