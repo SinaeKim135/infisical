@@ -43,7 +43,7 @@ jobs:
           sed -i "s#SMTP_FROM_ADDRESS=.*#SMTP_FROM_ADDRESS=#" .env
           sed -i "s#SMTP_FROM_NAME=.*#SMTP_FROM_NAME=#" .env
 
-      - uses: skyramp/testbot@50d7a01e58cf47d12439a2845a5555709bccd3a0 # v0.10.5
+      - uses: skyramp/testbot@7054923f058e1fac3b92925fa475288c733cfea7 # v0.9.4
         with:
           skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
           anthropicApiKey: ${{ secrets.SKYRAMP_TESTBOT_API_KEY }}
