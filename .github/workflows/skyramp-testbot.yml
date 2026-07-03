@@ -50,7 +50,9 @@ jobs:
           githubToken: ${{ steps.skyramp-testbot-app-token.outputs.token }}
           targetSetupCommand: 'docker compose -f docker-compose.bdd.yml up -d --build'
           targetReadyCheckCommand: 'curl -sf http://localhost:8080/api/status && curl -sf http://localhost:8080 | grep -q "root"'
-          targetReadyCheckTimeout: '300'
+          # v0.10.6+ runs targetSetupCommand in the background, so the ready check
+          # must outlast the full docker build (~12 min), not just server startup.
+          targetReadyCheckTimeout: '1200'
           authTokenCommand: 'curl -sf -X POST http://localhost:8080/api/v1/admin/bootstrap -H "Content-Type: application/json" -d "{\"email\":\"admin@test.com\",\"password\":\"Password123!\",\"organization\":\"TestOrg\"}" | jq -r ".identity.credentials.token"'
           uiCredentials: 'username=admin@test.com;password=Password123!;role=admin'
           targetTeardownCommand: 'docker compose -f docker-compose.bdd.yml down -v'
