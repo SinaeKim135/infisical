@@ -76,3 +76,8 @@ upgrade-impact/.local-output/
 
 /npm/bin
 __pycache__
+
+# Skyramp testbot: Playwright videos are written root-owned by the Docker
+# executor; keep them out of git so the side-PR stash step doesn't fail.
+.skyramp/videos/
+**/.skyramp/videos/
