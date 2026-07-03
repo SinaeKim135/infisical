@@ -8,7 +8,7 @@ type Props = {
 };
 
 export const ActivitySummaryCard = ({ projectId }: Props) => {
-  const { data, isLoading } = useGetProjectActivitySummary(projectId);
+  const { data, isLoading, isError } = useGetProjectActivitySummary(projectId);
 
   return (
     <Card className="mb-4">
@@ -18,6 +18,10 @@ export const ActivitySummaryCard = ({ projectId }: Props) => {
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-5 w-64" />
+        ) : isError ? (
+          <div className="text-sm text-mineshaft-400">
+            Unable to load activity summary
+          </div>
         ) : (
           <div className="flex items-center gap-6 text-sm text-mineshaft-200">
             <div className="flex items-center gap-1.5">
@@ -35,7 +39,7 @@ export const ActivitySummaryCard = ({ projectId }: Props) => {
               <span className="font-medium text-mineshaft-50">{data?.secretsDeleted ?? 0}</span>
               deleted
             </div>
-            <span className="text-xs text-mineshaft-400">this week</span>
+            <span className="text-xs text-mineshaft-400">last 7 days</span>
           </div>
         )}
       </CardContent>
