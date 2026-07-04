@@ -76,3 +76,10 @@ upgrade-impact/.local-output/
 
 /npm/bin
 __pycache__
+
+# Skyramp testbot: the Docker executor writes root-owned Playwright videos
+# under nested .skyramp/videos dirs (e.g. frontend/), which break the
+# side-PR git stash. Ignore ONLY nested dirs — the top-level
+# .skyramp/videos/ is referenced explicitly by testbot's own stash
+# pathspec, and git errors out if an explicitly-named path is ignored.
+*/.skyramp/videos/
