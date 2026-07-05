@@ -1,0 +1,417 @@
+# Page snapshot
+
+```yaml
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - button:
+                - img
+                - generic: Organization
+            - button:
+              - img
+          - generic:
+            - link:
+              - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/4954eb93-9c6f-4e14-8884-f7380a77ccf3/overview
+              - img
+              - generic: app-service
+              - generic: Secrets Management
+            - button:
+              - img
+        - generic: Free
+        - link:
+          - /url: /admin
+          - img
+          - generic: Server Console
+        - group:
+          - button:
+            - img
+          - button:
+            - img
+          - button:
+            - img
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - button:
+                    - img
+                    - generic: Organization
+                  - list:
+                    - listitem:
+                      - link:
+                        - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/4954eb93-9c6f-4e14-8884-f7380a77ccf3/overview
+                        - img
+                        - generic: Overview
+                    - listitem:
+                      - button:
+                        - img
+                        - generic: Approvals
+                        - img
+                    - listitem:
+                      - button:
+                        - img
+                        - generic: Integrations
+                        - img
+                    - listitem:
+                      - button:
+                        - img
+                        - generic: Access Control
+                        - img
+                    - listitem:
+                      - link:
+                        - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/4954eb93-9c6f-4e14-8884-f7380a77ccf3/insights
+                        - img
+                        - generic: Insights
+                    - listitem:
+                      - link:
+                        - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/4954eb93-9c6f-4e14-8884-f7380a77ccf3/audit-logs
+                        - img
+                        - generic: Audit Logs
+                    - listitem:
+                      - button:
+                        - img
+                        - generic: Settings
+                        - img
+            - generic:
+              - button:
+                - img
+                - generic: Toggle Sidebar
+        - main:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - link:
+                      - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/4954eb93-9c6f-4e14-8884-f7380a77ccf3/overview
+                      - img
+                      - text: Secrets Overview
+                    - generic:
+                      - generic:
+                        - generic:
+                          - heading [level=1]:
+                            - img
+                            - text: Secrets Management
+                      - generic:
+                        - paragraph:
+                          - text: Inject your secrets using
+                          - link:
+                            - /url: https://infisical.com/docs/cli/overview
+                            - text: Infisical CLI
+                          - text: ","
+                          - link:
+                            - /url: https://infisical.com/docs/api-reference/overview/introduction
+                            - text: Infisical API
+                          - text: ","
+                          - link:
+                            - /url: https://infisical.com/docs/sdks/overview
+                            - text: Infisical SDKs
+                          - text: ", and"
+                          - link:
+                            - /url: https://infisical.com/docs/documentation/getting-started/introduction
+                            - text: more
+                          - text: .
+                    - generic:
+                      - button:
+                        - img
+                    - generic:
+                      - tablist:
+                        - tab [selected]:
+                          - paragraph: Development
+                        - tab:
+                          - paragraph: Staging
+                        - tab:
+                          - paragraph: Production
+                        - tab:
+                          - generic:
+                            - img
+                    - generic:
+                      - generic:
+                        - generic:
+                          - button:
+                            - img
+                          - generic:
+                            - combobox
+                      - generic:
+                        - button:
+                          - generic:
+                            - img
+                          - generic: Filters
+                      - generic:
+                        - button:
+                          - img
+                      - generic:
+                        - button:
+                          - img
+                      - generic:
+                        - button:
+                          - generic:
+                            - img
+                          - generic: 2 Commits
+                      - generic:
+                        - button:
+                          - generic:
+                            - img
+                          - generic: Add Secret
+                        - button:
+                          - img
+                    - generic:
+                      - generic: 0 Selected
+                      - button: Unselect All
+                      - button:
+                        - generic:
+                          - img
+                        - generic: Move
+                      - button:
+                        - generic:
+                          - img
+                        - generic: Delete
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - checkbox
+                          - generic:
+                            - button
+                            - button:
+                              - text: Key
+                              - img
+                          - generic: Value
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - img
+                              - generic:
+                                - generic:
+                                  - textbox: SMTP_URL
+                              - button:
+                                - generic:
+                                  - generic:
+                                    - generic:
+                                      - code: "*************************"
+                                    - textbox
+                                - generic:
+                                  - img
+                                - generic:
+                                  - img
+                                - generic:
+                                  - img
+                                - generic:
+                                  - img
+                                - generic:
+                                  - img
+                                - generic:
+                                  - img
+                              - generic:
+                                - button:
+                                  - generic:
+                                    - img
+                                - button:
+                                  - generic:
+                                    - img
+                    - generic:
+                      - generic:
+                        - generic:
+                          - img
+                          - generic: "1"
+                      - generic:
+                        - generic: 1 - 1 of 1
+                        - button:
+                          - img
+                      - generic:
+                        - button [disabled]:
+                          - img
+                          - img
+                        - button [disabled]:
+                          - img
+                        - button [disabled]:
+                          - img
+                        - button [disabled]:
+                          - img
+                          - img
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - img
+                          - generic:
+                            - paragraph: Drag and drop a .env, .json, .csv, or .yml file here to add more secrets.
+                          - button
+                          - generic:
+                            - paragraph: OR
+                          - generic:
+                            - generic:
+                              - button:
+                                - generic:
+                                  - img
+                                - generic: Paste Secrets
+  - dialog:
+    - generic:
+      - generic: Secret – SMTP_URL
+      - generic:
+        - generic:
+          - generic: Changes will automatically be applied for commit
+          - generic:
+            - generic: Value
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - code: "*************************"
+                  - textbox: "*************************"
+              - button:
+                - generic:
+                  - img
+                - generic: Share
+              - button [disabled]:
+                - img
+          - generic:
+            - generic:
+              - generic:
+                - text: Multi-line encoding
+                - img
+              - generic:
+                - switch
+                - checkbox
+          - generic:
+            - generic:
+              - generic: Tags
+              - generic:
+                - generic:
+                  - generic:
+                    - button:
+                      - img
+            - generic:
+              - generic: Metadata
+              - generic:
+                - generic:
+                  - generic:
+                    - button:
+                      - img
+          - generic:
+            - generic: Comments & Notes
+            - textbox:
+              - /placeholder: add a comment or note to this secret...
+          - generic:
+            - generic: Version History
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: v2
+                    - generic: 07/05/2026, 4:00 AM
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - text: "Modified by:"
+                          - generic:
+                            - img
+                      - generic:
+                        - generic: "Value:"
+                        - generic:
+                          - generic:
+                            - text: "****"
+                            - button:
+                              - img
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: v1
+                    - generic: 07/05/2026, 3:47 AM
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - text: "Modified by:"
+                          - generic:
+                            - img
+                      - generic:
+                        - generic: "Value:"
+                        - generic:
+                          - generic:
+                            - text: "****"
+                            - button:
+                              - img
+                - generic:
+                  - generic:
+                    - button:
+                      - img
+                  - generic:
+                    - button:
+                      - img
+          - generic:
+            - generic:
+              - text: Access List
+              - img
+            - button [disabled]:
+              - generic:
+                - img
+              - generic: Analyze Access
+          - generic:
+            - button [active]:
+              - generic:
+                - img
+              - generic: Secret References
+            - button:
+              - img
+            - button:
+              - img
+      - button:
+        - img
+  - dialog "Secret Reference Details Visual breakdown of secrets referenced by this secret.":
+    - generic [ref=e3]:
+      - heading "Secret Reference Details Visual breakdown of secrets referenced by this secret." [level=2] [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]: Secret Reference Details
+          - paragraph [ref=e7]: Visual breakdown of secrets referenced by this secret.
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]: Expanded value
+          - generic [ref=e13]:
+            - generic:
+              - code: "*************************"
+            - textbox "secret value" [ref=e14]: placeholder-----BEGIN CERTIFICATE-----test-cert-value-----END CERTIFICATE-----
+        - generic [ref=e15]:
+          - text: Reference Tree
+          - img [ref=e16]
+        - tree [ref=e20]:
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: Accessibility guide for tree .
+            - paragraph [ref=e24]: "Navigate the tree with the arrow keys. Common tree hotkeys apply. Further keybindings are available:"
+            - list [ref=e25]:
+              - listitem [ref=e26]: enter to execute primary action on focused item
+              - listitem [ref=e27]: f2 to start renaming the focused item
+              - listitem [ref=e28]: escape to abort renaming an item
+              - listitem [ref=e29]: control+shift+d to start dragging selected items
+          - list [ref=e30]:
+            - treeitem "SMTP_URL" [expanded] [ref=e31]:
+              - button "SMTP_URL" [ref=e34]:
+                - generic [ref=e35]:
+                  - generic [ref=e36]: SMTP_URL
+                  - img [ref=e38]
+              - group [ref=e40]:
+                - treeitem "dev.TLS_CERT" [ref=e41]:
+                  - button "dev.TLS_CERT" [ref=e44]:
+                    - generic [ref=e45]:
+                      - button "dev.TLS_CERT" [ref=e46] [cursor=pointer]
+                      - img [ref=e48]
+        - generic [ref=e50]: Click a secret key to navigate to it (expand/collapse with the arrow).
+        - generic [ref=e51]:
+          - text: Dependency Tree
+          - img [ref=e52]
+        - generic [ref=e55]: No secrets reference this secret
+      - button "Close" [ref=e56] [cursor=pointer]:
+        - img [ref=e57]
+```
