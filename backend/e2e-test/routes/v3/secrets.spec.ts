@@ -1054,6 +1054,68 @@ describe.each([{ auth: AuthMode.JWT }, { auth: AuthMode.IDENTITY_ACCESS_TOKEN }]
       const secrets = await getSecrets(seedData1.environment.slug, path);
       expect(secrets).toEqual([]);
     });
+
+    test("Get raw secrets across multiple paths merged with positional precedence", async () => {
+      const sharedKey = { key: "MULTI-PATH-SEC", value: "shared-value", comment: "" };
+      await createRawSecret({ path: "/", ...sharedKey });
+      await createRawSecret({ path: "/nested1/nested2/folder", key: sharedKey.key, value: "svc-value", comment: "" });
+
+      const mergedRes = await testServer.inject({
+        method: "GET",
+        url: `/api/v3/secrets/raw`,
+        headers: {
+          authorization: `Bearer ${authToken}`
+        },
+        query: {
+          environment: seedData1.environment.slug,
+          workspaceId: seedData1.project.id,
+          secretPaths: "/,/nested1/nested2/folder"
+        }
+      });
+      expect(mergedRes.statusCode).toBe(200);
+      const mergedPayload = JSON.parse(mergedRes.payload);
+
+      expect(mergedPayload.merge).toEqual({
+        paths: ["/", "/nested1/nested2/folder"],
+        overrides: [
+          {
+            secretKey: sharedKey.key,
+            type: SecretType.Shared,
+            winningPath: "/nested1/nested2/folder",
+            overriddenPaths: ["/"]
+          }
+        ]
+      });
+
+      const mergedSecrets: { secretKey: string; secretValue: string; secretPath: string }[] = mergedPayload.secrets;
+      const winningSecrets = mergedSecrets.filter((el) => el.secretKey === sharedKey.key);
+      expect(winningSecrets).toHaveLength(1);
+      expect(winningSecrets[0].secretValue).toBe("svc-value");
+      expect(winningSecrets[0].secretPath).toBe("/nested1/nested2/folder");
+
+      await deleteRawSecret({ path: "/", key: sharedKey.key });
+      await deleteRawSecret({ path: "/nested1/nested2/folder", key: sharedKey.key });
+    });
+
+    test("Rejects secretPaths combined with recursive", async () => {
+      const conflictRes = await testServer.inject({
+        method: "GET",
+        url: `/api/v3/secrets/raw`,
+        headers: {
+          authorization: `Bearer ${authToken}`
+        },
+        query: {
+          environment: seedData1.environment.slug,
+          workspaceId: seedData1.project.id,
+          secretPaths: "/,/nested1/nested2/folder",
+          recursive: "true"
+        }
+      });
+      expect(conflictRes.statusCode).toBe(400);
+      const conflictPayload = JSON.parse(conflictRes.payload);
+      expect(conflictPayload.error).toBe("BadRequestError");
+      expect(conflictPayload.message).toBe("secretPaths cannot be combined with recursive");
+    });
   }
 );
 
