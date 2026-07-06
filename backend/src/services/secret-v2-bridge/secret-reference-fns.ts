@@ -5,9 +5,13 @@ import RE2 from "re2";
 import { ForbiddenRequestError } from "@app/lib/errors";
 
 import { TSecretFolderDALFactory } from "../secret-folder/secret-folder-dal";
+import { parseReferenceTokens } from "./secret-reference-parse-fns";
 import { TSecretV2BridgeDALFactory } from "./secret-v2-bridge-dal";
 
-const INTERPOLATION_PATTERN_STRING = String.raw`\${([a-zA-Z0-9-_.]+)}`;
+// The character class allows a backslash so that dots inside a secret key can be
+// escaped (e.g. ${dev.folder.app\.db\.host}). Dots that are NOT escaped continue
+// to act as environment/path/key separators — see parseReferenceTokens.
+const INTERPOLATION_PATTERN_STRING = String.raw`\${([a-zA-Z0-9-_.\\]+)}`;
 const INTERPOLATION_TEST_REGEX = new RE2(INTERPOLATION_PATTERN_STRING);
 
 /**
@@ -36,17 +40,19 @@ export const getAllSecretReferences = (maybeSecretReference: string) => {
     references.push(match[1]);
   }
 
-  const nestedReferences = references
-    .filter((el) => el.includes("."))
-    .map((el) => {
-      const [environment, ...secretPathList] = el.split(".");
+  const parsedReferences = references.map((el) => ({ raw: el, tokens: parseReferenceTokens(el) }));
+
+  const nestedReferences = parsedReferences
+    .filter(({ tokens }) => tokens.length > 1)
+    .map(({ tokens }) => {
+      const [environment, ...secretPathList] = tokens;
       return {
         environment,
         secretPath: path.join("/", ...secretPathList.slice(0, -1)),
         secretKey: secretPathList[secretPathList.length - 1]
       };
     });
-  const localReferences = references.filter((el) => !el.includes("."));
+  const localReferences = parsedReferences.filter(({ tokens }) => tokens.length === 1).map(({ tokens }) => tokens[0]);
   return { nestedReferences, localReferences };
 };
 
@@ -163,7 +169,7 @@ export const expandSecretReferencesFactory = ({
       if (refs.length > 0) {
         for (const interpolationSyntax of refs) {
           const interpolationKey = interpolationSyntax.slice(2, interpolationSyntax.length - 1);
-          const entities = interpolationKey.trim().split(".");
+          const entities = parseReferenceTokens(interpolationKey.trim());
 
           // eslint-disable-next-line no-continue
           if (!entities.length) continue;
