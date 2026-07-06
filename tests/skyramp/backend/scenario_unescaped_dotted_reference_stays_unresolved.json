@@ -1,0 +1,119 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\": \"testbot-unescaped-ref-b2c9\"}",
+    "ResponseBody": "{\"project\": {\"id\": \"22222222-2222-4222-8222-222222222222\", \"name\": \"testbot-unescaped-ref-b2c9\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 4000,
+    "Timestamp": "2026-07-06T18:03:55.435Z",
+    "Scheme": "http"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"22222222-2222-4222-8222-222222222222\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"prod-db.internal.example.com\"}",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"app.db.host\", \"secretValue\": \"prod-db.internal.example.com\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/app.db.host",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 4000,
+    "Timestamp": "2026-07-06T18:03:55.435Z",
+    "Scheme": "http"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"22222222-2222-4222-8222-222222222222\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"placeholder\"}",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"db-connection-string-unescaped\", \"secretValue\": \"placeholder\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/db-connection-string-unescaped",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 4000,
+    "Timestamp": "2026-07-06T18:03:55.435Z",
+    "Scheme": "http"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"db-connection-string-unescaped\", \"secretValue\": \"\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v3/secrets/raw/db-connection-string-unescaped",
+    "QueryParams": {
+      "workspaceId": [
+        "22222222-2222-4222-8222-222222222222"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 4000,
+    "Timestamp": "2026-07-06T18:03:55.435Z",
+    "Scheme": "http"
+  }
+]
