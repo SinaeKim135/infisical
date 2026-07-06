@@ -79,6 +79,40 @@ export const fetchProjectSecrets = async ({
   return data;
 };
 
+export type TMultiPathMergeMetadata = {
+  paths: string[];
+  overrides: { secretKey: string; type: string; winningPath: string; overriddenPaths: string[] }[];
+};
+
+/**
+ * Fetches secrets from multiple paths merged with positional precedence —
+ * when the same key exists in several paths, the later path in the list wins.
+ */
+export const fetchProjectSecretsMultiPath = async ({
+  projectId,
+  environment,
+  secretPaths,
+  includeImports,
+  expandSecretReferences,
+  viewSecretValue
+}: Omit<TGetProjectSecretsKey, "secretPath"> & { secretPaths: string[] }) => {
+  const { data } = await apiRequest.get<SecretV3RawResponse & { merge?: TMultiPathMergeMetadata }>(
+    "/api/v4/secrets",
+    {
+      params: {
+        environment,
+        projectId,
+        secretPaths: secretPaths.join(","),
+        viewSecretValue,
+        expandSecretReferences,
+        include_imports: includeImports
+      }
+    }
+  );
+
+  return data;
+};
+
 export const mergePersonalSecrets = (rawSecrets: SecretV3Raw[]) => {
   const personalSecrets: Record<
     string,
