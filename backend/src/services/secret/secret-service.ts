@@ -73,6 +73,7 @@ import {
   interpolateSecrets,
   recursivelyGetSecretPaths
 } from "./secret-fns";
+import { mergeSecretsByPathPrecedence, normalizeSecretPaths } from "./secret-multi-path-fns";
 import { TSecretQueueFactory } from "./secret-queue";
 import {
   SecretOperations,
@@ -94,6 +95,7 @@ import {
   TGetSecretAccessListDTO,
   TGetSecretsDTO,
   TGetSecretsRawDTO,
+  TGetSecretsRawMultiPathDTO,
   TGetSecretVersionsDTO,
   TMoveSecretsDTO,
   TRedactSecretVersionValueDTO,
@@ -1263,6 +1265,30 @@ export const secretServiceFactory = ({
     });
 
     return secrets;
+  };
+
+  const getSecretsRawMultiPath = async ({ paths, ...dto }: TGetSecretsRawMultiPathDTO) => {
+    const normalizedPaths = normalizeSecretPaths(paths);
+
+    // Each path is fetched through getSecretsRaw so per-path permission checks,
+    // import resolution, reference expansion and personal-override handling stay
+    // identical to single-path reads. A path the actor cannot read fails the
+    // whole request explicitly rather than being silently skipped.
+    const perPathResults = await Promise.all(
+      normalizedPaths.map(async (path) => {
+        const { secrets, imports } = await getSecretsRaw({ ...dto, path });
+        return { path, secrets, imports: imports || [] };
+      })
+    );
+
+    const { secrets, overrides } = mergeSecretsByPathPrecedence(perPathResults);
+    const imports = perPathResults.flatMap((el) => el.imports);
+
+    return {
+      secrets,
+      imports,
+      merge: { paths: normalizedPaths, overrides }
+    };
   };
 
   const getSecretReferenceTree = async (dto: TGetSecretReferencesTreeDTO) => {
@@ -3631,6 +3657,7 @@ export const secretServiceFactory = ({
     getSecretsCount,
     getSecretsCountMultiEnv,
     getSecretsRawMultiEnv,
+    getSecretsRawMultiPath,
     getSecretReferenceTree,
     getSecretsRawByFolderMappings,
     getSecretAccessList,
