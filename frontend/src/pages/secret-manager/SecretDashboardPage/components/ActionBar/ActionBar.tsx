@@ -108,6 +108,7 @@ import {
 import { Filter, RowType } from "../../SecretMainPage.types";
 import { CollapsibleSecretImports } from "../SecretListView/CollapsibleSecretImports";
 import { ReplicateFolderFromBoard } from "./ReplicateFolderFromBoard/ReplicateFolderFromBoard";
+import { BulkImportSecretsModal } from "./BulkImportSecretsModal";
 import { CreateDynamicSecretForm } from "./CreateDynamicSecretForm";
 import { CreateSecretImportForm } from "./CreateSecretImportForm";
 import { FolderForm } from "./FolderForm";
@@ -187,7 +188,8 @@ export const ActionBar = ({
     "replicateFolder",
     "confirmUpload",
     "requestAccess",
-    "importFromVault"
+    "importFromVault",
+    "bulkImport"
   ] as const);
   const isProtectedBranch = Boolean(protectedBranchPolicyName);
   const { subscription } = useSubscription();
@@ -1105,6 +1107,31 @@ export const ActionBar = ({
                     </Button>
                   )}
                 </ProjectPermissionCan>
+                <ProjectPermissionCan
+                  I={ProjectPermissionActions.Create}
+                  a={subject(ProjectPermissionSub.Secrets, {
+                    environment,
+                    secretPath,
+                    secretName: "*",
+                    secretTags: ["*"]
+                  })}
+                >
+                  {(isAllowed) => (
+                    <Button
+                      leftIcon={<FontAwesomeIcon icon={faFileImport} className="pr-2" />}
+                      onClick={() => {
+                        handlePopUpOpen("bulkImport");
+                        handlePopUpClose("misc");
+                      }}
+                      isDisabled={!isAllowed}
+                      variant="outline_bg"
+                      className="h-10 text-left"
+                      isFullWidth
+                    >
+                      Bulk Import (.env/CSV/JSON)
+                    </Button>
+                  )}
+                </ProjectPermissionCan>
                 {hasVaultConnection && (
                   <ProjectPermissionCan
                     I={ProjectPermissionActions.Create}
@@ -1257,6 +1284,13 @@ export const ActionBar = ({
           <FolderForm onCreateFolder={handleFolderCreate} />
         </DialogContent>
       </Dialog>
+      <BulkImportSecretsModal
+        isOpen={popUp.bulkImport.isOpen}
+        onOpenChange={(isOpen) => handlePopUpToggle("bulkImport", isOpen)}
+        projectId={projectId}
+        environment={environment}
+        secretPath={secretPath}
+      />
       <DeleteActionModal
         isOpen={popUp.bulkDeleteSecrets.isOpen}
         deleteKey="delete"
