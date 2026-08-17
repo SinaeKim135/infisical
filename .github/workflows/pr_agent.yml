@@ -47,9 +47,18 @@ jobs:
           # nested ones, and repo_context_files does not follow links, so list all three (408 lines,
           # under the 500-line repo_context_max_lines cap).
           config.repo_context_files: '["CLAUDE.md", "backend/CLAUDE.md", "frontend/CLAUDE.md"]'
+
+          # With allow_dynamic_context on, the hunk is anchored at the enclosing function signature if
+          # one is found within max_extra_lines_before_dynamic_context; patch_extra_lines_before is only
+          # the fallback when no signature is found in that window.
+          config.max_extra_lines_before_dynamic_context: "24"
           config.patch_extra_lines_before: "10"
+          config.patch_extra_lines_after: "4"
 
           pr_reviewer.require_tests_review: "true"
+          # the default of 3 is interpolated straight into the prompt as "a concise list (0-3 issues)",
+          # so it caps how many bugs a review can report at all
+          pr_reviewer.num_max_findings: "8"
           pr_reviewer.extra_instructions: "Prioritise correctness defects that survive type checking and pattern-based SAST: null/undefined dereference, unawaited or misused promises, off-by-one and boundary errors, incorrect error handling, race conditions, wrong operator precedence, inverted conditions, and state left inconsistent on the failure path. Report a concrete failing input or execution path for each finding. Do not report style, naming, or formatting."
 
           pr_code_suggestions.num_code_suggestions_per_chunk: "8"
