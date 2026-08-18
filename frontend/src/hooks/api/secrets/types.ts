@@ -252,6 +252,59 @@ export type TDeleteSecretBatchDTO = {
   }>;
 };
 
+export enum BulkImportFormat {
+  Env = "env",
+  Csv = "csv",
+  Json = "json"
+}
+
+export enum BulkImportItemAction {
+  Create = "create",
+  Overwrite = "overwrite",
+  Skip = "skip"
+}
+
+export type TBulkImportSecretsDTO = {
+  projectId: string;
+  environment: string;
+  secretPath: string;
+  format: BulkImportFormat;
+  data: string;
+  dryRun: boolean;
+  overwriteExisting: boolean;
+};
+
+export type TBulkImportParseError = {
+  line?: number;
+  raw?: string;
+  message: string;
+};
+
+export type TBulkImportPreviewItem = {
+  environment: string;
+  secretPath: string;
+  secretKey: string;
+  action: BulkImportItemAction;
+  reason?: string;
+};
+
+export type TBulkImportSecretsResponse = {
+  dryRun: boolean;
+  // dry-run fields
+  secretsToCreate?: number;
+  secretsToOverwrite?: number;
+  secretsToSkip?: number;
+  foldersToCreate?: string[];
+  // import fields
+  imported?: number;
+  created?: number;
+  overwritten?: number;
+  skipped?: number;
+  // shared fields
+  parseErrors: TBulkImportParseError[];
+  items: TBulkImportPreviewItem[];
+};
+
 export type TMoveSecretsDTO = {
   projectId: string;
   projectSlug: string;
