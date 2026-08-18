@@ -13,6 +13,8 @@ import { PendingAction } from "../secretFolders/types";
 import { secretSnapshotKeys } from "../secretSnapshots/queries";
 import { secretKeys } from "./queries";
 import {
+  TBulkImportSecretsDTO,
+  TBulkImportSecretsResponse,
   TCreateSecretBatchDTO,
   TCreateSecretsV3DTO,
   TDeleteSecretBatchDTO,
@@ -608,6 +610,61 @@ export const useCreateCommit = () => {
         queryKey: secretApprovalRequestKeys.listAllForProject({ projectId })
       });
     }
+  });
+};
+
+export const useBulkImportSecrets = ({
+  options
+}: {
+  options?: Omit<
+    MutationOptions<TBulkImportSecretsResponse, object, TBulkImportSecretsDTO>,
+    "mutationFn"
+  >;
+} = {}) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<TBulkImportSecretsResponse, object, TBulkImportSecretsDTO>({
+    mutationFn: async ({
+      projectId,
+      environment,
+      secretPath,
+      format,
+      data,
+      dryRun,
+      overwriteExisting
+    }) => {
+      const { data: response } = await apiRequest.post<TBulkImportSecretsResponse>(
+        "/api/v4/secrets/bulk-import",
+        {
+          projectId,
+          environment,
+          secretPath,
+          format,
+          data,
+          dryRun,
+          overwriteExisting
+        }
+      );
+      return response;
+    },
+    onSuccess: (_, { projectId, dryRun }) => {
+      // a dry run writes nothing, so there is nothing to invalidate
+      if (dryRun) return;
+
+      // an import can touch many environments/paths, so invalidate broadly.
+      // dashboard query keys are shaped ["dashboard", { projectId, ... }] -> prefix-invalidate the namespace
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.all() });
+      // secret query keys are shaped [{ projectId, ... }, "secrets"]
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          (query.queryKey[0] as { projectId?: string })?.projectId === projectId &&
+          (query.queryKey[1] === "secrets" ||
+            query.queryKey[1] === "secrets-import-sec" ||
+            query.queryKey[1] === "imported-folders-all-envs")
+      });
+      queryClient.invalidateQueries({ queryKey: secretApprovalRequestKeys.count({ projectId }) });
+    },
+    ...options
   });
 };
 
