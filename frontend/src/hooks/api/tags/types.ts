@@ -26,6 +26,19 @@ export type SecretTags = {
   tagColor: string;
 };
 
+export type TModifySecretTagsDTO = {
+  projectId: string;
+  environment: string;
+  secretPath: string;
+  secretKey: string;
+  tagSlugs: string[];
+};
+
+export type SecretTagsResponse = {
+  secretName: string;
+  tags: { id: string; slug: string; name: string; color?: string }[];
+};
+
 export type TagColor = {
   id: number;
   hex: string;

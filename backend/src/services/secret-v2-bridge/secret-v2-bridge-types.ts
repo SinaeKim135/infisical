@@ -404,6 +404,17 @@ export type TGetAccessibleSecretsDTO = {
   filterByAction: ProjectPermissionSecretActions.DescribeSecret | ProjectPermissionSecretActions.ReadValue;
 } & TProjectPermission;
 
+export type TGetSecretTagsDTO = {
+  projectId: string;
+  environment: string;
+  secretPath: string;
+  secretName: string;
+} & TProjectPermission;
+
+export type TModifySecretTagsDTO = TGetSecretTagsDTO & {
+  tagSlugs: string[];
+};
+
 export type TUpdateLinkedSecretReferencesDTO = {
   projectId: string;
   environment: string;
