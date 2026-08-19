@@ -154,6 +154,18 @@ export const SecretItem = memo(
 
     const { isRotatedSecret } = secret;
 
+    // Expired secrets stop being served but stay in the list the dashboard already fetched, so the
+    // row has to say why a secret is about to disappear (or already has).
+    const expiryLabel = (() => {
+      if (!secret.expiresAt) return null;
+
+      const msRemaining = new Date(secret.expiresAt).getTime() - Date.now();
+      if (msRemaining <= 0) return { isExpired: true, text: "expired" };
+
+      const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+      return { isExpired: false, text: `expires in ${daysRemaining}d` };
+    })();
+
     const autoSaveTimeoutRef = useRef<NodeJS.Timeout>();
     const isAutoSavingRef = useRef(false);
 
@@ -496,6 +508,22 @@ export const SecretItem = memo(
                   />
                 )}
               />
+              {expiryLabel && (
+                <Tooltip
+                  content={`Expires ${new Date(secret.expiresAt as string).toLocaleString()}`}
+                >
+                  <div
+                    className={twMerge(
+                      "ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-xs whitespace-nowrap",
+                      expiryLabel.isExpired
+                        ? "bg-red-900/60 text-red-200"
+                        : "bg-yellow-900/60 text-yellow-200"
+                    )}
+                  >
+                    {expiryLabel.text}
+                  </div>
+                </Tooltip>
+              )}
             </div>
             <div
               className="flex w-80 grow items-center border-x border-mineshaft-600 py-1 pr-2 pl-4"

@@ -47,6 +47,12 @@ interface TSecretV2DalArg {
   keyStore: TKeyStoreFactory;
 }
 
+// An expired secret stays in the table but is excluded from the read surfaces that serve it to
+// callers, so clearing or extending its expiry brings it straight back.
+export const applyExpiryFilter = (bd: Knex.QueryBuilder, column = `${TableName.SecretV2}.expiresAt`) => {
+  void bd.whereNull(column).orWhereRaw("?? > NOW()", [column]);
+};
+
 export const SECRET_DAL_TTL = () => applyJitter(10 * 60, 2 * 60);
 export const SECRET_DAL_VERSION_TTL = "15m";
 export const MAX_SECRET_CACHE_BYTES = 25 * 1024 * 1024;
@@ -470,6 +476,7 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
       includeTagsInSearch?: boolean;
       includeMetadataInSearch?: boolean;
       excludeRotatedSecrets?: boolean;
+      excludeExpiredSecrets?: boolean;
     }
   ) => {
     try {
@@ -587,6 +594,9 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
           void bd
             .whereNull(`${TableName.SecretV2}.userId`)
             .orWhere({ [`${TableName.SecretV2}.userId` as "userId"]: userId || null });
+        })
+        .where((bd) => {
+          if (filters?.excludeExpiredSecrets) applyExpiryFilter(bd);
         })
         .leftJoin(
           TableName.SecretV2JnTag,
@@ -985,6 +995,22 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
     }
   };
 
+  // Secrets whose expiry falls inside the window and has not passed yet. Already-expired secrets
+  // are excluded: the point of the window is to warn before the secret stops being served.
+  const findExpiringByFolderId = async (folderId: string, expiresBefore: Date, tx?: Knex) => {
+    try {
+      return await (tx || db.replicaNode())(TableName.SecretV2)
+        .where({ folderId })
+        .whereNotNull(`${TableName.SecretV2}.expiresAt`)
+        .whereRaw(`?? > NOW()`, [`${TableName.SecretV2}.expiresAt`])
+        .where(`${TableName.SecretV2}.expiresAt`, "<=", expiresBefore)
+        .select(selectAllTableCols(TableName.SecretV2))
+        .orderBy(`${TableName.SecretV2}.expiresAt`, "asc");
+    } catch (error) {
+      throw new DatabaseError({ error, name: "FindExpiringByFolderId" });
+    }
+  };
+
   const findOneWithTags = async (filter: Partial<TSecretsV2>, tx?: Knex) => {
     try {
       const rawDocs = await (tx || db.replicaNode())(TableName.SecretV2)
@@ -1183,6 +1209,7 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
     bulkUpdateNoVersionIncrement,
     getSecretTags,
     findOneWithTags,
+    findExpiringByFolderId,
     findByFolderId,
     findByFolderIds,
     findBySecretKeys,

@@ -84,6 +84,7 @@ export type TCreateSecretDTO = TProjectPermission & {
   secretPath: string;
   environment: string;
   secretValue: string;
+  expiresAt?: Date | null;
   type: SecretType;
   tagIds?: string[];
   secretComment?: string;
@@ -98,6 +99,7 @@ export type TUpdateSecretDTO = TProjectPermission & {
   environment: string;
   secretName: string;
   secretValue?: string;
+  expiresAt?: Date | null;
   newSecretName?: string;
   secretComment?: string;
   type: SecretType;
@@ -374,6 +376,13 @@ export type TGetSecretReferencesDTO = {
   secretPath: string;
 } & Omit<TProjectPermission, "projectId">;
 
+export type TGetExpiringSecretsDTO = {
+  projectId: string;
+  environment: string;
+  secretPath: string;
+  days: number;
+} & Omit<TProjectPermission, "projectId">;
+
 export type TFindSecretsByFolderIdsFilter = {
   limit?: number;
   offset?: number;
@@ -386,6 +395,7 @@ export type TFindSecretsByFolderIdsFilter = {
   includeMetadataInSearch?: boolean;
   keys?: string[];
   excludeRotatedSecrets?: boolean;
+  excludeExpiredSecrets?: boolean;
 };
 
 export type TGetSecretsRawByFolderMappingsDTO = {
