@@ -153,6 +153,8 @@ export type TSecretV2BridgeServiceFactory = ReturnType<typeof secretV2BridgeServ
 /*
  * This service is a bridge from our old architecture towards the new architecture
  */
+const SECONDS_PER_DAY = 24 * 60 * 60;
+
 export const secretV2BridgeServiceFactory = ({
   secretDAL,
   projectDAL,
@@ -2878,7 +2880,7 @@ export const secretV2BridgeServiceFactory = ({
         message: `Folder with path '${secretPath}' in environment with slug '${environment}' not found`
       });
 
-    const expiresBefore = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    const expiresBefore = new Date(Date.now() + days * SECONDS_PER_DAY);
     const secrets = await secretDAL.findExpiringByFolderId(folder.id, expiresBefore);
 
     return {
