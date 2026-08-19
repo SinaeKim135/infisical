@@ -141,13 +141,17 @@ export const registerSecretFolderRouter = async (server: FastifyZodProvider) => 
         200: z.object({
           folder: SecretFoldersSchema.extend({
             path: z.string()
-          })
+          }),
+          updatedImportsCount: z.number().describe("How many secret imports were repointed at the new path."),
+          updatedReferencesCount: z
+            .number()
+            .describe("How many secret values had references to the old path rewritten.")
         })
       }
     },
     onRequest: verifyAuth([AuthMode.JWT, AuthMode.API_KEY, AuthMode.SERVICE_TOKEN, AuthMode.IDENTITY_ACCESS_TOKEN]),
     handler: async (req) => {
-      const { folder, old } = await server.services.folder.updateFolder({
+      const { folder, old, updatedImportsCount, updatedReferencesCount } = await server.services.folder.updateFolder({
         actorId: req.permission.id,
         actor: req.permission.type,
         actorAuthMethod: req.permission.authMethod,
@@ -169,7 +173,7 @@ export const registerSecretFolderRouter = async (server: FastifyZodProvider) => 
           }
         }
       });
-      return { folder };
+      return { folder, updatedImportsCount, updatedReferencesCount };
     }
   });
 
