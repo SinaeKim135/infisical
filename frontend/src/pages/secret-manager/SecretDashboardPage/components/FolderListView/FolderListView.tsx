@@ -122,7 +122,7 @@ export const FolderListView = ({
       return;
     }
 
-    await updateFolder({
+    const { updatedImportsCount, updatedReferencesCount } = await updateFolder({
       folderId,
       name: newFolderName,
       path: secretPath,
@@ -131,9 +131,20 @@ export const FolderListView = ({
       description: newFolderDescription
     });
     handlePopUpClose("updateFolder");
+
+    // A rename repoints everything aimed at the old path; say how much moved so the user is not
+    // left wondering whether their imports and references survived.
+    const cascaded = [
+      updatedImportsCount && `${updatedImportsCount} import${updatedImportsCount === 1 ? "" : "s"}`,
+      updatedReferencesCount &&
+        `${updatedReferencesCount} reference${updatedReferencesCount === 1 ? "" : "s"}`
+    ].filter(Boolean);
+
     createNotification({
       type: "success",
-      text: "Successfully saved folder"
+      text: cascaded.length
+        ? `Successfully saved folder and updated ${cascaded.join(" and ")}`
+        : "Successfully saved folder"
     });
   };
 

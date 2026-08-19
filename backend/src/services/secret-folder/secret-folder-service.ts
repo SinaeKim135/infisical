@@ -4,7 +4,13 @@ import { Knex } from "knex";
 import path from "path";
 import { v4 as uuidv4, validate as uuidValidate } from "uuid";
 
-import { ActionProjectType, TProjectEnvironments, TSecretFolders, TSecretFoldersInsert } from "@app/db/schemas";
+import {
+  ActionProjectType,
+  TableName,
+  TProjectEnvironments,
+  TSecretFolders,
+  TSecretFoldersInsert
+} from "@app/db/schemas";
 import { TDynamicSecretDALFactory } from "@app/ee/services/dynamic-secret/dynamic-secret-dal";
 import { TPermissionServiceFactory } from "@app/ee/services/permission/permission-service-types";
 import { ProjectPermissionActions, ProjectPermissionSub } from "@app/ee/services/permission/project-permission";
@@ -15,7 +21,7 @@ import { BadRequestError, NotFoundError } from "@app/lib/errors";
 import { OrderByDirection, OrgServiceActor } from "@app/lib/types";
 import { ActorType } from "@app/services/auth/auth-type";
 import { SecretsOrderBy } from "@app/services/secret/secret-types";
-import { buildFolderPath } from "@app/services/secret-folder/secret-folder-fns";
+import { buildFolderPath, remapRenamedPath } from "@app/services/secret-folder/secret-folder-fns";
 
 import {
   ChangeType,
@@ -23,8 +29,12 @@ import {
   TCommitResourceChangeDTO,
   TFolderCommitServiceFactory
 } from "../folder-commit/folder-commit-service";
+import { TKmsServiceFactory } from "../kms/kms-service";
+import { KmsDataKey } from "../kms/kms-types";
 import { TProjectDALFactory } from "../project/project-dal";
 import { TProjectEnvDALFactory } from "../project-env/project-env-dal";
+import { TSecretImportDALFactory } from "../secret-import/secret-import-dal";
+import { getAllSecretReferences } from "../secret-v2-bridge/secret-reference-fns";
 import { TSecretV2BridgeDALFactory } from "../secret-v2-bridge/secret-v2-bridge-dal";
 import { TSecretFolderDALFactory } from "./secret-folder-dal";
 import {
@@ -52,8 +62,16 @@ type TSecretFolderServiceFactoryDep = {
   secretApprovalPolicyService: Pick<TSecretApprovalPolicyServiceFactory, "getSecretApprovalPolicy">;
   secretV2BridgeDAL: Pick<
     TSecretV2BridgeDALFactory,
-    "findByFolderIds" | "invalidateSecretCacheByProjectId" | "findOne"
+    | "findByFolderIds"
+    | "invalidateSecretCacheByProjectId"
+    | "findOne"
+    | "findReferencedSecretReferences"
+    | "bulkUpdate"
+    | "upsertSecretReferences"
+    | "find"
   >;
+  secretImportDAL: Pick<TSecretImportDALFactory, "findByImportPathPrefix" | "updateById">;
+  kmsService: Pick<TKmsServiceFactory, "createCipherPairWithDataKey">;
   dynamicSecretDAL: Pick<TDynamicSecretDALFactory, "findOne">;
 };
 
@@ -69,6 +87,8 @@ export const secretFolderServiceFactory = ({
   projectDAL,
   secretApprovalPolicyService,
   secretV2BridgeDAL,
+  secretImportDAL,
+  kmsService,
   dynamicSecretDAL
 }: TSecretFolderServiceFactoryDep) => {
   const createFolder = async ({
@@ -401,6 +421,94 @@ export const secretFolderServiceFactory = ({
     };
   };
 
+  // A rename moves the folder's path, and everything that pointed at the old path has to follow:
+  // secret imports targeting it (or anything beneath it) and secret references inside secret values.
+  const $cascadeFolderRename = async ({
+    projectId,
+    envId,
+    environment,
+    oldFolderPath,
+    newFolderPath,
+    tx
+  }: {
+    projectId: string;
+    envId: string;
+    environment: string;
+    oldFolderPath: string;
+    newFolderPath: string;
+    tx: Knex;
+  }) => {
+    if (oldFolderPath === newFolderPath) return { updatedImportsCount: 0, updatedReferencesCount: 0 };
+
+    const candidateImports = await secretImportDAL.findByImportPathPrefix(envId, oldFolderPath, tx);
+
+    let updatedImportsCount = 0;
+    for await (const secretImport of candidateImports) {
+      const remapped = remapRenamedPath(secretImport.importPath, oldFolderPath, newFolderPath);
+      if (!remapped) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      await secretImportDAL.updateById(secretImport.id, { importPath: remapped }, tx);
+      updatedImportsCount += 1;
+    }
+
+    // References are tracked per (environment, secretPath), so the dependency graph tells us which
+    // secrets point at the renamed folder without decrypting every secret in the project.
+    const references = await secretV2BridgeDAL.findReferencedSecretReferences(
+      projectId,
+      environment,
+      oldFolderPath,
+      tx
+    );
+    if (!references.length) return { updatedImportsCount, updatedReferencesCount: 0 };
+
+    const { encryptor: secretManagerEncryptor, decryptor: secretManagerDecryptor } =
+      await kmsService.createCipherPairWithDataKey({ type: KmsDataKey.SecretManager, projectId });
+
+    const referencingSecretIds = [...new Set(references.map((reference) => reference.secretId))];
+    const referencingSecrets = await secretV2BridgeDAL.find(
+      { $in: { [`${TableName.SecretV2}.id` as "id"]: referencingSecretIds } },
+      { tx }
+    );
+
+    const oldReferencePrefix = ["\\${", environment, ...oldFolderPath.split("/").filter(Boolean)].join(".");
+    const newReferencePrefix = ["\\${", environment, ...newFolderPath.split("/").filter(Boolean)].join(".");
+
+    let updatedReferencesCount = 0;
+    for await (const secret of referencingSecrets) {
+      if (!secret.encryptedValue) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      const originalValue = secretManagerDecryptor({ cipherTextBlob: secret.encryptedValue }).toString();
+      const newValue = originalValue.replaceAll(`${oldReferencePrefix}.`, `${newReferencePrefix}.`);
+      if (newValue === originalValue) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      await secretV2BridgeDAL.bulkUpdate(
+        [
+          {
+            filter: { id: secret.id },
+            data: { encryptedValue: secretManagerEncryptor({ plainText: Buffer.from(newValue) }).cipherTextBlob }
+          }
+        ],
+        tx
+      );
+      await secretV2BridgeDAL.upsertSecretReferences(
+        [{ secretId: secret.id, references: getAllSecretReferences(newValue).nestedReferences }],
+        tx
+      );
+      updatedReferencesCount += 1;
+    }
+
+    return { updatedImportsCount, updatedReferencesCount };
+  };
+
   const updateFolder = async ({
     projectId,
     actor,
@@ -461,70 +569,87 @@ export const secretFolderServiceFactory = ({
       }
     }
 
-    const { newFolder, newFolderPath, oldFolderPath } = await folderDAL.transaction(async (tx) => {
-      // Read the old folder path BEFORE the update to capture the original name in the path.
-      // This must be done inside the transaction to ensure read-after-write consistency
-      // when using read replicas, but before the UPDATE to get the old state.
-      const [oldFolderWithPath] = await folderDAL.findSecretPathByFolderIds(projectId, [folder.id], tx);
-      if (!oldFolderWithPath) {
-        throw new NotFoundError({
-          message: `Failed to retrieve path for folder with ID '${folder.id}'`
-        });
-      }
+    const { newFolder, newFolderPath, oldFolderPath, updatedImportsCount, updatedReferencesCount } =
+      await folderDAL.transaction(async (tx) => {
+        // Read the old folder path BEFORE the update to capture the original name in the path.
+        // This must be done inside the transaction to ensure read-after-write consistency
+        // when using read replicas, but before the UPDATE to get the old state.
+        const [oldFolderWithPath] = await folderDAL.findSecretPathByFolderIds(projectId, [folder.id], tx);
+        if (!oldFolderWithPath) {
+          throw new NotFoundError({
+            message: `Failed to retrieve path for folder with ID '${folder.id}'`
+          });
+        }
 
-      const [doc] = await folderDAL.update(
-        { envId: env.id, id: folder.id, parentId: parentFolder.id, isReserved: false },
-        { name, description },
-        tx
-      );
-      const folderVersion = await folderVersionDAL.create(
-        {
-          name: doc.name,
-          envId: doc.envId,
-          version: doc.version,
-          folderId: doc.id,
-          description: doc.description
-        },
-        tx
-      );
-      await folderCommitService.createCommit(
-        {
-          actor: {
-            type: actor,
-            metadata: {
-              id: actorId
-            }
+        const [doc] = await folderDAL.update(
+          { envId: env.id, id: folder.id, parentId: parentFolder.id, isReserved: false },
+          { name, description },
+          tx
+        );
+        const folderVersion = await folderVersionDAL.create(
+          {
+            name: doc.name,
+            envId: doc.envId,
+            version: doc.version,
+            folderId: doc.id,
+            description: doc.description
           },
-          message: "Folder updated",
-          folderId: parentFolder.id,
-          changes: [
-            {
-              type: CommitType.ADD,
-              isUpdate: true,
-              folderVersionId: folderVersion.id
-            }
-          ]
-        },
-        tx
-      );
-      if (!doc) throw new NotFoundError({ message: `Failed to update folder with ID '${id}'`, name: "UpdateFolder" });
+          tx
+        );
+        await folderCommitService.createCommit(
+          {
+            actor: {
+              type: actor,
+              metadata: {
+                id: actorId
+              }
+            },
+            message: "Folder updated",
+            folderId: parentFolder.id,
+            changes: [
+              {
+                type: CommitType.ADD,
+                isUpdate: true,
+                folderVersionId: folderVersion.id
+              }
+            ]
+          },
+          tx
+        );
+        if (!doc) throw new NotFoundError({ message: `Failed to update folder with ID '${id}'`, name: "UpdateFolder" });
 
-      // Read the new folder path AFTER the update to get the updated name in the path.
-      const [newFolderWithPath] = await folderDAL.findSecretPathByFolderIds(projectId, [doc.id], tx);
-      if (!newFolderWithPath) {
-        throw new NotFoundError({
-          message: `Failed to retrieve path for folder with ID '${doc.id}'`
+        // Read the new folder path AFTER the update to get the updated name in the path.
+        const [newFolderWithPath] = await folderDAL.findSecretPathByFolderIds(projectId, [doc.id], tx);
+        if (!newFolderWithPath) {
+          throw new NotFoundError({
+            message: `Failed to retrieve path for folder with ID '${doc.id}'`
+          });
+        }
+
+        const cascade = await $cascadeFolderRename({
+          projectId,
+          envId: env.id,
+          environment,
+          oldFolderPath: oldFolderWithPath.path,
+          newFolderPath: newFolderWithPath.path,
+          tx
         });
-      }
 
-      return { newFolder: doc, newFolderPath: newFolderWithPath.path, oldFolderPath: oldFolderWithPath.path };
-    });
+        return {
+          newFolder: doc,
+          newFolderPath: newFolderWithPath.path,
+          oldFolderPath: oldFolderWithPath.path,
+          ...cascade
+        };
+      });
 
     await snapshotService.performSnapshot(newFolder.parentId as string);
     await secretV2BridgeDAL.invalidateSecretCacheByProjectId(projectId);
     return {
       folder: { ...newFolder, path: newFolderPath },
-      old: { ...folder, path: oldFolderPath }
+      old: { ...folder, path: oldFolderPath },
+      updatedImportsCount,
+      updatedReferencesCount
     };
   };
 

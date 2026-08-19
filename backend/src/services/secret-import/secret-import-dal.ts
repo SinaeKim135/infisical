@@ -4,7 +4,7 @@ import { TDbClient } from "@app/db";
 import { TableName, TSecretImports } from "@app/db/schemas";
 import { DatabaseError } from "@app/lib/errors";
 import { sanitizeSqlLikeString } from "@app/lib/fn";
-import { ormify } from "@app/lib/knex";
+import { ormify, selectAllTableCols } from "@app/lib/knex";
 
 import { EnvironmentInfo, FolderInfo, FolderResult, SecretResult } from "./secret-import-types";
 
@@ -111,6 +111,21 @@ export const secretImportDALFactory = (db: TDbClient) => {
       }));
     } catch (error) {
       throw new DatabaseError({ error, name: "Find secret imports" });
+    }
+  };
+
+  // Imports that point at a renamed folder or anything beneath it. Selecting descendants here is
+  // what lets a rename fix `/app/db` and not just `/app`.
+  const findByImportPathPrefix = async (envId: string, importPath: string, tx?: Knex) => {
+    try {
+      return await (tx || db.replicaNode())(TableName.SecretImport)
+        .where({ importEnv: envId })
+        .where((bd) => {
+          void bd.where({ importPath }).orWhereLike("importPath", `${importPath === "/" ? "" : importPath}/%`);
+        })
+        .select(selectAllTableCols(TableName.SecretImport));
+    } catch (error) {
+      throw new DatabaseError({ error, name: "FindByImportPathPrefix" });
     }
   };
 
@@ -400,6 +415,7 @@ export const secretImportDALFactory = (db: TDbClient) => {
     ...secretImportOrm,
     find,
     findById,
+    findByImportPathPrefix,
     findByIds,
     findByFolderIds,
     findLastImportPosition,
