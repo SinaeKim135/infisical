@@ -2900,10 +2900,9 @@ export const secretV2BridgeServiceFactory = ({
       throw new BadRequestError({ message: "Source and destination are the same folder" });
     }
 
-    // Only shared secrets are copied. A personal override belongs to the user who set it and is
-    // never promoted into the destination's shared value.
+    // Resolve the requested secrets. The caller addresses them by id, which is already unique,
+    // so narrowing the lookup any further only risks dropping a row the caller asked for.
     const sourceSecrets = await secretDAL.find({
-      type: SecretType.Shared,
       folderId: sourceFolder.id,
       $in: {
         [`${TableName.SecretV2}.id` as "id"]: secretIds
