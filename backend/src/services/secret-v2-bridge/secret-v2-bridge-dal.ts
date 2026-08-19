@@ -1015,7 +1015,6 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
     try {
       const rawDocs = await (tx || db.replicaNode())(TableName.SecretV2)
         .where(filter)
-        .where((bd) => applyExpiryFilter(bd))
         .leftJoin(
           TableName.SecretV2JnTag,
           `${TableName.SecretV2}.id`,
