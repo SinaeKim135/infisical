@@ -1,0 +1,89 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"77fa7aed-9288-401e-a4c9-3a9430be62a0\", \"environment\": \"dev\", \"name\": \"parent-folder\", \"path\": \"/\"}",
+    "ResponseBody": "{\"folder\": {\"id\": \"d3b07384-d9a0-4c2e-8b3f-1a2c3d4e5f60\", \"name\": \"parent-folder\", \"path\": \"/parent-folder\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v2/folders",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T16:32:45.368Z",
+    "Scheme": "http",
+    "scenarioName": "folder-rename-cascade-descendant-paths",
+    "UniqueFields": [
+      "name"
+    ]
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"77fa7aed-9288-401e-a4c9-3a9430be62a0\", \"environment\": \"dev\", \"name\": \"parent-folder-renamed\", \"path\": \"/\"}",
+    "ResponseBody": "{\"folder\": {\"id\": \"d3b07384-d9a0-4c2e-8b3f-1a2c3d4e5f60\", \"name\": \"parent-folder-renamed\", \"path\": \"/parent-folder-renamed\"}, \"updatedImportsCount\": 0, \"updatedReferencesCount\": 0}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "PATCH",
+    "Path": "/api/v2/folders/d3b07384-d9a0-4c2e-8b3f-1a2c3d4e5f60",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T16:32:46.368Z",
+    "Scheme": "http",
+    "scenarioName": "folder-rename-cascade-descendant-paths",
+    "UniqueFields": [
+      "name"
+    ]
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"77fa7aed-9288-401e-a4c9-3a9430be62a0\", \"environment\": \"dev\", \"path\": \"/\"}",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v2/folders/d3b07384-d9a0-4c2e-8b3f-1a2c3d4e5f60",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T16:32:47.368Z",
+    "Scheme": "http",
+    "scenarioName": "folder-rename-cascade-descendant-paths"
+  }
+]
