@@ -47,6 +47,7 @@ jobs:
         with:
           skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
           anthropicApiKey: ${{ secrets.SKYRAMP_TESTBOT_API_KEY }}
+          model: claude-sonnet-5
           githubToken: ${{ steps.skyramp-testbot-app-token.outputs.token }}
           targetSetupCommand: 'docker compose -f docker-compose.bdd.yml up -d --build'
           targetReadyCheckCommand: 'curl -sf http://localhost:8080/api/status && curl -sf http://localhost:8080 | grep -q "root"'
