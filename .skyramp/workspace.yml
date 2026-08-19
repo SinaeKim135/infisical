@@ -1,0 +1,40 @@
+# Skyramp Workspace Configuration
+workspace:
+  repoName: SinaeKim135/infisical
+  repoUrl: https://github.com/SinaeKim135/infisical
+metadata:
+  schemaVersion: v1
+  executorVersion: v1.3.38
+  createdAt: "2026-08-19T04:02:48.864Z"
+  updatedAt: "2026-08-19T04:02:48.866Z"
+services:
+  - serviceName: infisical-backend
+    language: typescript
+    framework: vitest
+    testDirectory: backend/e2e-test
+    api:
+      authType: bearer
+      authHeader: Authorization
+      authScheme: Bearer
+      baseUrl: http://localhost:4000
+    runtimeDetails:
+      serverStartCommand: docker compose -f docker-compose.bdd.yml up -d --build backend
+      runtime: docker
+      dockerNetwork: infisical_default
+      testSuites:
+        - framework: vitest
+          testRunCommand: docker exec infisical-bdd-api npm run test:e2e --
+          pathGlobs:
+            - backend/e2e-test/**/*.spec.ts
+  - serviceName: infisical-frontend
+    language: typescript
+    framework: playwright
+    testDirectory: tests/skyramp/frontend
+    api:
+      authType: none
+      authHeader: ""
+      baseUrl: http://localhost:8080
+    runtimeDetails:
+      serverStartCommand: docker compose -f docker-compose.bdd.yml up -d --build frontend nginx
+      runtime: docker
+      dockerNetwork: infisical_default
