@@ -626,7 +626,16 @@ export const secretFolderServiceFactory = ({
           });
         }
 
-        const cascade = await $cascadeFolderRename({
+        // Shape the rename's own result before handing off to the cascade so the two stay separate.
+        const result = {
+          newFolder: doc,
+          newFolderPath: newFolderWithPath.path,
+          oldFolderPath: oldFolderWithPath.path,
+          updatedImportsCount: 0,
+          updatedReferencesCount: 0
+        };
+
+        await $cascadeFolderRename({
           projectId,
           envId: env.id,
           environment,
@@ -635,12 +644,7 @@ export const secretFolderServiceFactory = ({
           tx
         });
 
-        return {
-          newFolder: doc,
-          newFolderPath: newFolderWithPath.path,
-          oldFolderPath: oldFolderWithPath.path,
-          ...cascade
-        };
+        return result;
       });
 
     await snapshotService.performSnapshot(newFolder.parentId as string);
