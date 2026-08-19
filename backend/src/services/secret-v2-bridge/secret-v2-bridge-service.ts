@@ -4067,10 +4067,7 @@ export const secretV2BridgeServiceFactory = ({
     );
 
     const tags = await $resolveTagsBySlug(dto.projectId, tagSlugs);
-    const existingTags = await secretDAL.getSecretTags(secret.id);
-    const alreadyAttached = new Set(existingTags.map((el) => el.id));
-    // attach is idempotent: a tag that is already on the secret is skipped rather than linked twice
-    const tagsToAttach = tags.filter((el) => !alreadyAttached.has(el.id));
+    const tagsToAttach = tags;
 
     if (tagsToAttach.length) {
       await secretTagDAL.saveTagsToSecretV2(
