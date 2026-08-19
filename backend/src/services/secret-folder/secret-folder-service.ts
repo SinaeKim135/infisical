@@ -467,11 +467,12 @@ export const secretFolderServiceFactory = ({
     const { encryptor: secretManagerEncryptor, decryptor: secretManagerDecryptor } =
       await kmsService.createCipherPairWithDataKey({ type: KmsDataKey.SecretManager, projectId });
 
+    // References to this folder live in the folder's own environment, so narrow the scan to it.
+    const envFolderIds = new Set((await folderDAL.find({ envId }, { tx })).map((folder) => folder.id));
     const referencingSecretIds = [...new Set(references.map((reference) => reference.secretId))];
-    const referencingSecrets = await secretV2BridgeDAL.find(
-      { $in: { [`${TableName.SecretV2}.id` as "id"]: referencingSecretIds } },
-      { tx }
-    );
+    const referencingSecrets = (
+      await secretV2BridgeDAL.find({ $in: { [`${TableName.SecretV2}.id` as "id"]: referencingSecretIds } }, { tx })
+    ).filter((secret) => envFolderIds.has(secret.folderId));
 
     const oldReferencePrefix = ["\\${", environment, ...oldFolderPath.split("/").filter(Boolean)].join(".");
     const newReferencePrefix = ["\\${", environment, ...newFolderPath.split("/").filter(Boolean)].join(".");
