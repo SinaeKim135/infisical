@@ -72,3 +72,8 @@ export type TUpdateFolderBatchDTO = {
     description?: string | null;
   }[];
 };
+
+export type TUpdateFolderRes = {
+  updatedImportsCount: number;
+  updatedReferencesCount: number;
+};

@@ -81,3 +81,19 @@ export const resolveClosestFolder = (
   }
   return current;
 };
+
+/**
+ * Rewrites a path that pointed at `oldPath` so it points at `newPath` instead, matching the
+ * renamed folder itself and anything beneath it.
+ *
+ * Matching is path-segment aware: renaming `/app` moves `/app` and `/app/db`, and must leave a
+ * sibling like `/app2` alone even though its name starts with the same characters.
+ *
+ * Returns null when the path is unaffected by the rename.
+ */
+export const remapRenamedPath = (candidatePath: string, oldPath: string, newPath: string) => {
+  if (candidatePath === oldPath) return newPath;
+  if (candidatePath.startsWith(`${oldPath}/`)) return `${newPath}${candidatePath.slice(oldPath.length)}`;
+
+  return null;
+};
