@@ -484,7 +484,7 @@ export const secretFolderServiceFactory = ({
       }
 
       const originalValue = secretManagerDecryptor({ cipherTextBlob: secret.encryptedValue }).toString();
-      const newValue = originalValue.replaceAll(`${oldReferencePrefix}.`, `${newReferencePrefix}.`);
+      const newValue = originalValue.replaceAll(oldReferencePrefix, newReferencePrefix);
       if (newValue === originalValue) {
         // eslint-disable-next-line no-continue
         continue;
