@@ -13,6 +13,7 @@ import { PendingAction } from "../secretFolders/types";
 import { secretSnapshotKeys } from "../secretSnapshots/queries";
 import { secretKeys } from "./queries";
 import {
+  TCopySecretsDTO,
   TCreateSecretBatchDTO,
   TCreateSecretsV3DTO,
   TDeleteSecretBatchDTO,
@@ -375,6 +376,52 @@ export const useDeleteSecretBatch = ({
       queryClient.invalidateQueries({ queryKey: secretApprovalRequestKeys.count({ projectId }) });
       queryClient.invalidateQueries({
         queryKey: secretApprovalRequestKeys.listAllForProject({ projectId })
+      });
+    },
+    ...options
+  });
+};
+
+export const useCopySecrets = ({
+  options
+}: {
+  options?: Omit<MutationOptions<object, object, TCopySecretsDTO>, "mutationFn">;
+} = {}) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { isDestinationUpdated: boolean; copiedCount: number },
+    object,
+    TCopySecretsDTO
+  >({
+    mutationFn: async (dto) => {
+      const { data } = await apiRequest.post<{
+        isDestinationUpdated: boolean;
+        copiedCount: number;
+      }>("/api/v4/secrets/copy", dto);
+
+      return data;
+    },
+    onSuccess: (_, { projectId, destinationEnvironment, destinationSecretPath }) => {
+      queryClient.invalidateQueries({
+        queryKey: dashboardKeys.getDashboardSecrets({
+          projectId,
+          secretPath: destinationSecretPath
+        })
+      });
+      queryClient.invalidateQueries({
+        queryKey: secretKeys.getProjectSecret({
+          projectId,
+          environment: destinationEnvironment,
+          secretPath: destinationSecretPath
+        })
+      });
+      queryClient.invalidateQueries({
+        queryKey: secretSnapshotKeys.list({
+          environment: destinationEnvironment,
+          projectId,
+          directory: destinationSecretPath
+        })
       });
     },
     ...options
