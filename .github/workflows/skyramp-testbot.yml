@@ -43,6 +43,39 @@ jobs:
           sed -i "s#SMTP_FROM_ADDRESS=.*#SMTP_FROM_ADDRESS=#" .env
           sed -i "s#SMTP_FROM_NAME=.*#SMTP_FROM_NAME=#" .env
 
+      - name: Harden apt mirrors for Playwright browser deps
+        run: |
+          # skyramp/testbot runs `playwright install --with-deps chromium`, which
+          # shells out to apt. The runner image already lists the Ubuntu archives
+          # as failover behind azure.archive.ubuntu.com, but apt only falls through
+          # after a fetch actually FAILS -- with the default timeouts a degraded
+          # Azure mirror stalls instead. Short timeouts make that failover engage.
+          {
+            printf 'http://azure.archive.ubuntu.com/ubuntu/\tpriority:1\n'
+            printf 'https://archive.ubuntu.com/ubuntu/\tpriority:2\n'
+            printf 'https://security.ubuntu.com/ubuntu/\tpriority:3\n'
+            printf 'http://us.archive.ubuntu.com/ubuntu/\tpriority:4\n'
+          } | sudo tee /etc/apt/apt-mirrors.txt
+
+          sudo tee /etc/apt/apt.conf.d/99-skyramp-apt >/dev/null <<'EOF'
+          Acquire::Retries "5";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          DPkg::Lock::Timeout "300";
+          EOF
+
+          # Warm the package index so the action's own apt call hits a good cache.
+          # Non-fatal: the action retries, and a stale index is better than a hard fail.
+          for i in 1 2 3 4 5; do
+            if sudo apt-get update -qq; then break; fi
+            if [ "$i" -eq 5 ]; then
+              echo "::warning::apt-get update failed after 5 attempts; continuing"
+              break
+            fi
+            echo "apt-get update failed (attempt $i/5); retrying in $((i * 20))s"
+            sleep $((i * 20))
+          done
+
       - uses: skyramp/testbot@89f8cd799fdbf8ff762568873f52dacab5d3e23f # v0.10.7
         with:
           skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
