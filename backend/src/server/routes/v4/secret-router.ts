@@ -1498,4 +1498,176 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
       return message;
     }
   });
+
+  const SecretTagsResponseSchema = z.object({
+    secretName: z.string(),
+    tags: SanitizedTagSchema.array()
+  });
+
+  const secretTagParamsSchema = z.object({
+    secretName: SecretNameSchema.describe("The name of the secret to modify tags on.")
+  });
+
+  const secretTagLocationSchema = {
+    projectId: z.string().trim().min(1).describe("The ID of the project the secret belongs to."),
+    environment: z.string().trim().describe("The slug of the environment the secret belongs to."),
+    secretPath: z
+      .string()
+      .trim()
+      .default("/")
+      .transform(removeTrailingSlash)
+      .describe("The path of the secret to modify tags on.")
+  };
+
+  server.route({
+    method: "GET",
+    url: "/:secretName/tags",
+    config: {
+      rateLimit: secretsLimit
+    },
+    schema: {
+      hide: false,
+      operationId: "getSecretTagsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Get the tags attached to a secret",
+      security: [{ bearerAuth: [] }],
+      params: secretTagParamsSchema,
+      querystring: z.object(secretTagLocationSchema),
+      response: {
+        200: SecretTagsResponseSchema
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { secretName } = req.params;
+      const { projectId, environment, secretPath } = req.query;
+
+      return server.services.secret.getSecretTags({
+        actorId: req.permission.id,
+        actor: req.permission.type,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        projectId,
+        environment,
+        secretPath,
+        secretName
+      });
+    }
+  });
+
+  server.route({
+    method: "POST",
+    url: "/:secretName/tags",
+    config: {
+      rateLimit: secretsLimit
+    },
+    schema: {
+      hide: false,
+      operationId: "attachSecretTagsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Attach tags to a secret. Tags already attached are left untouched.",
+      security: [{ bearerAuth: [] }],
+      params: secretTagParamsSchema,
+      body: z.object({
+        ...secretTagLocationSchema,
+        tagSlugs: z.string().array().min(1).describe("The slugs of the tags to attach to the secret.")
+      }),
+      response: {
+        200: SecretTagsResponseSchema
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { secretName } = req.params;
+      const { projectId, environment, secretPath, tagSlugs } = req.body;
+
+      const result = await server.services.secret.attachSecretTags({
+        actorId: req.permission.id,
+        actor: req.permission.type,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        projectId,
+        environment,
+        secretPath,
+        secretName,
+        tagSlugs
+      });
+
+      await server.services.auditLog.createAuditLog({
+        projectId,
+        ...req.auditLogInfo,
+        event: {
+          type: EventType.UPDATE_SECRET,
+          metadata: {
+            environment,
+            secretPath,
+            secretId: result.secretId,
+            secretKey: secretName,
+            secretVersion: result.secretVersion,
+            secretTags: result.tags.map((tag) => tag.slug)
+          }
+        }
+      });
+
+      return result;
+    }
+  });
+
+  server.route({
+    method: "DELETE",
+    url: "/:secretName/tags",
+    config: {
+      rateLimit: secretsLimit
+    },
+    schema: {
+      hide: false,
+      operationId: "detachSecretTagsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Detach tags from a secret. Tags that are not attached are left untouched.",
+      security: [{ bearerAuth: [] }],
+      params: secretTagParamsSchema,
+      body: z.object({
+        ...secretTagLocationSchema,
+        tagSlugs: z.string().array().min(1).describe("The slugs of the tags to detach from the secret.")
+      }),
+      response: {
+        200: SecretTagsResponseSchema
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { secretName } = req.params;
+      const { projectId, environment, secretPath, tagSlugs } = req.body;
+
+      const result = await server.services.secret.detachSecretTags({
+        actorId: req.permission.id,
+        actor: req.permission.type,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        projectId,
+        environment,
+        secretPath,
+        secretName,
+        tagSlugs
+      });
+
+      await server.services.auditLog.createAuditLog({
+        projectId,
+        ...req.auditLogInfo,
+        event: {
+          type: EventType.UPDATE_SECRET,
+          metadata: {
+            environment,
+            secretPath,
+            secretId: result.secretId,
+            secretKey: secretName,
+            secretVersion: result.secretVersion,
+            secretTags: result.tags.map((tag) => tag.slug)
+          }
+        }
+      });
+
+      return result;
+    }
+  });
 };
