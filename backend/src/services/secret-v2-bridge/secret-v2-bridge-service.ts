@@ -2941,14 +2941,19 @@ export const secretV2BridgeServiceFactory = ({
 
     // Copy by value, rewriting references that pointed at the source environment so the copied
     // secret resolves against its new home.
+    const sourceReferencePrefix = [sourceEnvironment, ...sourceFolder.path.split("/").filter(Boolean)].join(".");
+
     const copiedSourceSecrets = sourceSecrets.map((secret) => {
       if (!secret.encryptedValue) return { ...secret, value: undefined };
 
-      const value = remapSecretReferenceEnvironment(
-        secretManagerDecryptor({ cipherTextBlob: secret.encryptedValue }).toString(),
-        sourceEnvironment,
-        destinationEnvironment
-      );
+      const sourceValue = secretManagerDecryptor({ cipherTextBlob: secret.encryptedValue }).toString();
+
+      // A value that carries references of its own has to be materialized so those references can
+      // be rewritten for the destination. A plain value has nothing to rewrite, so the copy can
+      // simply point back at the secret it came from.
+      const value = getAllSecretReferences(sourceValue).nestedReferences.length
+        ? remapSecretReferenceEnvironment(sourceValue, sourceEnvironment, destinationEnvironment)
+        : `\${${sourceReferencePrefix}.${secret.key}}`;
 
       return {
         ...secret,
