@@ -959,3 +959,21 @@ export type TSearchIdentitiesDTO = {
     role?: { $in: string[] };
   };
 };
+
+export type IdentityAccessTokenSummary = {
+  id: string;
+  authMethod: string;
+  name?: string | null;
+  createdAt: string;
+  accessTokenLastRenewedAt: string | null;
+  accessTokenLastUsedAt: string | null;
+  accessTokenNumUses: number;
+  accessTokenNumUsesLimit: number;
+  expiresAt: string | null;
+  isAccessTokenRevoked: boolean;
+};
+
+export type TRevokeIdentityAccessTokenDTO = {
+  identityId: string;
+  tokenId: string;
+};

@@ -86,11 +86,16 @@ export const identityAccessTokenServiceFactory = ({
       throw new BadRequestError({ message: "Only identity access tokens can be renewed" });
     }
 
+    // Resolve the token first, then check each state that blocks a renewal, so the caller is told
+    // which condition failed instead of a blanket "not found".
     const identityAccessToken = await identityAccessTokenDAL.findOne({
-      [`${TableName.IdentityAccessToken}.id` as "id"]: decodedToken.identityAccessTokenId,
-      isAccessTokenRevoked: false
+      [`${TableName.IdentityAccessToken}.id` as "id"]: decodedToken.identityAccessTokenId
     });
     if (!identityAccessToken) throw new UnauthorizedError({ message: "No identity access token found" });
+
+    if (identityAccessToken.isAccessTokenRevoked) {
+      throw new UnauthorizedError({ message: "Failed to renew MI access token because it has been revoked" });
+    }
 
     let { accessTokenNumUses } = identityAccessToken;
     const tokenStatusInCache = await accessTokenQueue.getIdentityTokenDetailsInCache(identityAccessToken.id);
