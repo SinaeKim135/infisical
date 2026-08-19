@@ -42,6 +42,7 @@ import { requestMemoize } from "@app/lib/request-context/request-memoizer";
 import { OrgServiceActor } from "@app/lib/types";
 import {
   SecretUpdateMode,
+  TCopySecretsDTO,
   TGetSecretReferencesDTO,
   TGetSecretsRawByFolderMappingsDTO
 } from "@app/services/secret-v2-bridge/secret-v2-bridge-types";
@@ -3037,6 +3038,18 @@ export const secretServiceFactory = ({
     return { message: "Successfully backfilled secret references" };
   };
 
+  // Copy is v2-bridge only: the legacy secret tables have no equivalent write path.
+  const copySecrets = async (dto: TCopySecretsDTO) => {
+    const project = await requestMemoize(requestMemoKeys.projectFindById(dto.projectId), () =>
+      projectDAL.findById(dto.projectId)
+    );
+    if (!project) throw new NotFoundError({ message: `Project with ID '${dto.projectId}' not found` });
+    if (project.version !== ProjectVersion.V3)
+      throw new BadRequestError({ message: "Copying secrets is not supported on this project version" });
+
+    return secretV2BridgeService.copySecrets(dto);
+  };
+
   const moveSecrets = async ({
     sourceEnvironment,
     sourceSecretPath,
@@ -3627,6 +3640,7 @@ export const secretServiceFactory = ({
     getSecretVersions,
     backfillSecretReferences,
     moveSecrets,
+    copySecrets,
     startSecretV2Migration,
     getSecretsCount,
     getSecretsCountMultiEnv,

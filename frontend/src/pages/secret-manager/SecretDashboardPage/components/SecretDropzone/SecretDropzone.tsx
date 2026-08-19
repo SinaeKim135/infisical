@@ -157,9 +157,6 @@ export const SecretDropzone = ({
   const { openPopUp } = usePopUpAction();
   const { addPendingChange } = useBatchModeActions();
 
-  // hide copy secrets from board due to import folders feature
-  const shouldRenderCopySecrets = false;
-
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -466,18 +463,15 @@ export const SecretDropzone = ({
                 secretPath={secretPath}
                 isSmaller={isSmaller}
               />
-              {shouldRenderCopySecrets && (
-                <CopySecretsFromBoard
-                  isOpen={popUp.importSecEnv.isOpen}
-                  onToggle={(isOpen) => handlePopUpToggle("importSecEnv", isOpen)}
-                  onParsedEnv={handleParsedEnv}
-                  environment={environment}
-                  environments={environments}
-                  projectId={projectId}
-                  secretPath={secretPath}
-                  isSmaller={isSmaller}
-                />
-              )}
+              <CopySecretsFromBoard
+                isOpen={popUp.importSecEnv.isOpen}
+                onToggle={(isOpen) => handlePopUpToggle("importSecEnv", isOpen)}
+                environment={environment}
+                environments={environments}
+                projectId={projectId}
+                secretPath={secretPath}
+                isSmaller={isSmaller}
+              />
               {!isSmaller && (
                 <ProjectPermissionCan
                   I={ProjectPermissionActions.Create}
