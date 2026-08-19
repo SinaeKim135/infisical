@@ -683,8 +683,7 @@ export const secretV2BridgeServiceFactory = ({
               skipMultilineEncoding: inputSecret.skipMultilineEncoding,
               key: inputSecret.newSecretName || secretName,
               tags: inputSecret.tagIds,
-              // omitted means leave the current expiry alone; an explicit null clears it
-              ...(inputSecret.expiresAt !== undefined ? { expiresAt: inputSecret.expiresAt } : {}),
+              expiresAt: inputSecret.expiresAt ?? null,
               // metadata: secretMetadata ? JSON.stringify(secretMetadata) : [],
               secretMetadata: secretMetadata?.map(({ key, value, isEncrypted }) => ({
                 key,
