@@ -93,10 +93,6 @@ export const identityAccessTokenServiceFactory = ({
     });
     if (!identityAccessToken) throw new UnauthorizedError({ message: "No identity access token found" });
 
-    if (identityAccessToken.isAccessTokenRevoked) {
-      throw new UnauthorizedError({ message: "Failed to renew MI access token because it has been revoked" });
-    }
-
     let { accessTokenNumUses } = identityAccessToken;
     const tokenStatusInCache = await accessTokenQueue.getIdentityTokenDetailsInCache(identityAccessToken.id);
     if (tokenStatusInCache) {
