@@ -50,6 +50,32 @@ export const getAllSecretReferences = (maybeSecretReference: string) => {
   return { nestedReferences, localReferences };
 };
 
+/**
+ * Rewrites the environment of every nested secret reference that points at `sourceEnvironment`
+ * so it points at `destinationEnvironment` instead, leaving the folder path and key untouched.
+ *
+ * Used when copying a secret between environments: a value carrying `${dev.db.HOST}` should
+ * resolve against the destination once it lives there, not keep reaching back into the source.
+ * Local references (`${KEY}`, no dot) already resolve within their own folder, so they are
+ * left alone, as are references pointing at any other environment.
+ */
+export const remapSecretReferenceEnvironment = (
+  value: string,
+  sourceEnvironment: string,
+  destinationEnvironment: string
+) => {
+  if (sourceEnvironment === destinationEnvironment) return value;
+
+  return value.replace(new RE2(INTERPOLATION_PATTERN_STRING, "g"), (reference: string, body: string) => {
+    if (!body.includes(".")) return reference;
+
+    const [environment, ...rest] = body.split(".");
+    if (environment !== sourceEnvironment) return reference;
+
+    return `\${${[destinationEnvironment, ...rest].join(".")}}`;
+  });
+};
+
 // used to convert multi line ones to quotes ones with \n
 const formatMultiValueEnv = (val?: string) => {
   if (!val) return "";
