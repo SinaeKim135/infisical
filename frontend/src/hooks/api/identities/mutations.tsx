@@ -57,6 +57,7 @@ import {
   IdentityUniversalAuth,
   RevokeTokenDTO,
   RevokeTokenRes,
+  TRevokeIdentityAccessTokenDTO,
   UpdateIdentityAliCloudAuthDTO,
   UpdateIdentityAwsAuthDTO,
   UpdateIdentityAzureAuthDTO,
@@ -1999,6 +2000,23 @@ export const useClearIdentityLdapAuthLockouts = () => {
     onSuccess: (_, { identityId }) => {
       queryClient.invalidateQueries({
         queryKey: identitiesKeys.getIdentityLdapAuth(identityId)
+      });
+    }
+  });
+};
+
+export const useRevokeIdentityAccessToken = () => {
+  const queryClient = useQueryClient();
+  return useMutation<{ tokenId: string }, object, TRevokeIdentityAccessTokenDTO>({
+    mutationFn: async ({ identityId, tokenId }) => {
+      const { data } = await apiRequest.post<{ message: string; tokenId: string }>(
+        `/api/v1/identities/${identityId}/access-tokens/${tokenId}/revoke`
+      );
+      return data;
+    },
+    onSuccess: (_, { identityId }) => {
+      queryClient.invalidateQueries({
+        queryKey: identitiesKeys.getIdentityAccessTokens(identityId)
       });
     }
   });
