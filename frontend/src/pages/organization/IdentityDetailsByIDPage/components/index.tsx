@@ -1,3 +1,4 @@
+export { IdentityAccessTokensSection } from "./IdentityAccessTokensSection";
 export { IdentityAuthenticationSection } from "./IdentityAuthenticationSection/IdentityAuthenticationSection";
 export { IdentityClientSecretModal } from "./IdentityClientSecretModal";
 export { IdentityDetailsSection } from "./IdentityDetailsSection";

@@ -6,6 +6,7 @@ import { TReactQueryOptions } from "@app/types/reactQuery";
 import {
   ClientSecretData,
   IdentityAccessToken,
+  IdentityAccessTokenSummary,
   IdentityAliCloudAuth,
   IdentityAwsAuth,
   IdentityAzureAuth,
@@ -26,6 +27,8 @@ import {
 
 export const identitiesKeys = {
   getIdentityById: (identityId: string) => [{ identityId }, "identity"] as const,
+  getIdentityAccessTokens: (identityId: string) =>
+    [{ identityId }, "identity-access-tokens"] as const,
   searchIdentitiesRoot: ["identity", "search"] as const,
   searchIdentities: (dto: TSearchIdentitiesDTO) =>
     [...identitiesKeys.searchIdentitiesRoot, dto] as const,
@@ -415,3 +418,15 @@ export const useGetIdentitySpiffeAuth = (
     enabled: Boolean(identityId) && (options?.enabled ?? true)
   });
 };
+
+export const useGetIdentityAccessTokens = (identityId: string) =>
+  useQuery({
+    queryKey: identitiesKeys.getIdentityAccessTokens(identityId),
+    queryFn: async () => {
+      const { data } = await apiRequest.get<{ tokens: IdentityAccessTokenSummary[] }>(
+        `/api/v1/identities/${identityId}/access-tokens`
+      );
+      return data.tokens;
+    },
+    enabled: Boolean(identityId)
+  });
