@@ -380,11 +380,9 @@ export const identityServiceFactory = ({
 
     return {
       tokens: tokens.map((token) => {
-        // Expiry runs from the last renewal when there was one, matching what the auth layer
-        // enforces; a TTL of 0 means the token never expires on its own.
+        // A TTL of 0 means the token never expires on its own.
         const ttlSeconds = Number(token.accessTokenTTL);
-        const measuredFrom = token.accessTokenLastRenewedAt ?? token.createdAt;
-        const expiresAt = ttlSeconds > 0 ? new Date(new Date(measuredFrom).getTime() + ttlSeconds * 1000) : null;
+        const expiresAt = ttlSeconds > 0 ? new Date(new Date(token.createdAt).getTime() + ttlSeconds * 1000) : null;
 
         return {
           id: token.id,
