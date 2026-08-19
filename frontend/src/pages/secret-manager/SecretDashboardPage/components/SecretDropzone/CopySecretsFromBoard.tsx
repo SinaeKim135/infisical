@@ -4,8 +4,10 @@ import { subject } from "@casl/ability";
 import { faClone, faFileImport, faSquareCheck } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { zodResolver } from "@hookform/resolvers/zod";
+import axios from "axios";
 import { z } from "zod";
 
+import { createNotification } from "@app/components/notifications";
 import { ProjectPermissionCan } from "@app/components/permissions";
 import {
   Button,
@@ -23,6 +25,7 @@ import { ProjectPermissionActions, ProjectPermissionSub } from "@app/context";
 import { ProjectPermissionSecretActions } from "@app/context/ProjectPermissionContext/types";
 import { useDebounce } from "@app/hooks";
 import { useGetAccessibleSecrets } from "@app/hooks/api/dashboard";
+import { useCopySecrets } from "@app/hooks/api/secrets/mutations";
 
 const formSchema = z.object({
   environment: z.object({ name: z.string(), slug: z.string() }),
@@ -33,7 +36,7 @@ const formSchema = z.object({
       typeof val === "string" && val.at(-1) === "/" && val.length > 1 ? val.slice(0, -1) : val
     ),
   secrets: z
-    .object({ secretKey: z.string(), secretValue: z.string().optional() })
+    .object({ id: z.string(), secretKey: z.string() })
     .array()
     .min(1, "Select one or more secrets to copy")
 });
@@ -44,7 +47,6 @@ type Props = {
   isOpen?: boolean;
   isSmaller?: boolean;
   onToggle: (isOpen: boolean) => void;
-  onParsedEnv: (env: Record<string, { value: string; comments: string[] }>) => void;
   environments?: { name: string; slug: string }[];
   projectId: string;
   environment: string;
@@ -58,10 +60,10 @@ export const CopySecretsFromBoard = ({
   secretPath,
   isOpen,
   isSmaller,
-  onToggle,
-  onParsedEnv
+  onToggle
 }: Props) => {
-  const [shouldIncludeValues, setShouldIncludeValues] = useState(true);
+  const [shouldOverwrite, setShouldOverwrite] = useState(false);
+  const { mutateAsync: copySecrets, isPending: isCopying } = useCopySecrets();
 
   const {
     handleSubmit,
@@ -84,9 +86,7 @@ export const CopySecretsFromBoard = ({
       projectId,
       secretPath: debouncedEnvCopySecretPath,
       environment: selectedEnvSlug.slug,
-      filterByAction: shouldIncludeValues
-        ? ProjectPermissionSecretActions.ReadValue
-        : ProjectPermissionSecretActions.DescribeSecret,
+      filterByAction: ProjectPermissionSecretActions.ReadValue,
       options: {
         enabled:
           Boolean(projectId) &&
@@ -107,16 +107,31 @@ export const CopySecretsFromBoard = ({
   };
 
   const handleFormSubmit = async (data: TFormSchema) => {
-    const secretsToBePulled: Record<string, { value: string; comments: string[] }> = {};
-    data.secrets.forEach(({ secretKey, secretValue }) => {
-      secretsToBePulled[secretKey] = {
-        value: (shouldIncludeValues && secretValue) || "",
-        comments: [""]
-      };
-    });
-    onParsedEnv(secretsToBePulled);
-    onToggle(false);
-    reset();
+    try {
+      const { copiedCount } = await copySecrets({
+        projectId,
+        sourceEnvironment: data.environment.slug,
+        sourceSecretPath: data.secretPath,
+        destinationEnvironment: environment,
+        destinationSecretPath: secretPath,
+        secretIds: data.secrets.map((secret) => secret.id),
+        shouldOverwrite
+      });
+
+      createNotification({
+        type: "success",
+        text: `Copied ${copiedCount} secret${copiedCount === 1 ? "" : "s"} into ${secretPath}`
+      });
+      onToggle(false);
+      reset();
+    } catch (error) {
+      let text = (error as Error)?.message ?? "Failed to copy secrets";
+      if (axios.isAxiosError(error)) {
+        const responseMessage = (error?.response?.data as { message?: string })?.message;
+        if (responseMessage) text = responseMessage;
+      }
+      createNotification({ type: "error", text });
+    }
   };
 
   return (
@@ -156,7 +171,7 @@ export const CopySecretsFromBoard = ({
         bodyClassName="overflow-visible"
         className="max-w-2xl"
         title="Copy Secret From An Environment"
-        subTitle="Copy/paste secrets from other environments into this context"
+        subTitle="Copy secrets from another environment into this folder"
       >
         <form onSubmit={handleSubmit(handleFormSubmit)}>
           <div className="flex items-center space-x-2">
@@ -238,21 +253,19 @@ export const CopySecretsFromBoard = ({
             </div>
             <div className="my-6 ml-2">
               <Switch
-                id="populate-include-value"
-                isChecked={shouldIncludeValues}
-                onCheckedChange={(isChecked) => {
-                  setValue("secrets", []);
-                  setShouldIncludeValues(isChecked as boolean);
-                }}
+                id="copy-should-overwrite"
+                isChecked={shouldOverwrite}
+                onCheckedChange={(isChecked) => setShouldOverwrite(isChecked as boolean)}
               >
-                Include secret values
+                Overwrite secrets that already exist here
               </Switch>
             </div>
             <div className="flex items-center space-x-4">
               <Button
                 leftIcon={<FontAwesomeIcon icon={faClone} />}
                 type="submit"
-                isDisabled={!isDirty}
+                isDisabled={!isDirty || isCopying}
+                isLoading={isCopying}
               >
                 Copy Secrets
               </Button>

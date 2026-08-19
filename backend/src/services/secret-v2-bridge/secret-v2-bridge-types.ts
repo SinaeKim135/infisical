@@ -351,6 +351,16 @@ export type TMoveSecretsDTO = {
   shouldOverwrite: boolean;
 } & Omit<TProjectPermission, "projectId">;
 
+export type TCopySecretsDTO = {
+  projectId: string;
+  sourceEnvironment: string;
+  sourceSecretPath: string;
+  destinationEnvironment: string;
+  destinationSecretPath: string;
+  secretIds: string[];
+  shouldOverwrite: boolean;
+} & Omit<TProjectPermission, "projectId">;
+
 export type TAttachSecretTagsDTO = {
   projectId: string;
   secretName: string;

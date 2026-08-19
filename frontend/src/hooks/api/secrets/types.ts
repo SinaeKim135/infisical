@@ -263,6 +263,16 @@ export type TMoveSecretsDTO = {
   shouldOverwrite: boolean;
 };
 
+export type TCopySecretsDTO = {
+  projectId: string;
+  sourceEnvironment: string;
+  sourceSecretPath: string;
+  destinationEnvironment: string;
+  destinationSecretPath: string;
+  secretIds: string[];
+  shouldOverwrite: boolean;
+};
+
 export type TGetSecretReferenceTreeDTO = {
   secretKey: string;
   secretPath: string;
