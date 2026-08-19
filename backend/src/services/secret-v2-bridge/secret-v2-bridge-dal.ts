@@ -47,13 +47,23 @@ interface TSecretV2DalArg {
   keyStore: TKeyStoreFactory;
 }
 
-// A secret matches a tag filter when it carries ANY of the requested slugs. Shared by the
-// listing and count queries so both agree on what "filtered by tag" means.
+// A secret matches a tag filter when it carries the requested slugs. Shared by the listing and
+// count queries so both agree on what "filtered by tag" means. Matching against the junction
+// table directly keeps the filter independent of how the caller joined the tag rows.
 export const applyTagSlugFilter = (qb: Knex.QueryBuilder, column: string, tagSlugs?: string[]) => {
   const slugs = tagSlugs?.filter(Boolean);
   if (!slugs?.length) return;
 
-  void qb.whereIn(column, slugs);
+  slugs.forEach((slug) => {
+    void qb.whereExists((subQuery) => {
+      void subQuery
+        .select(`${TableName.SecretV2JnTag}.id`)
+        .from(TableName.SecretV2JnTag)
+        .join(TableName.SecretTag, `${TableName.SecretV2JnTag}.${TableName.SecretTag}Id`, `${TableName.SecretTag}.id`)
+        .whereRaw(`"${TableName.SecretV2JnTag}"."${TableName.SecretV2}Id" = "${TableName.SecretV2}"."id"`)
+        .where(`${TableName.SecretTag}.slug`, slug);
+    });
+  });
 };
 
 export const SECRET_DAL_TTL = () => applyJitter(10 * 60, 2 * 60);
