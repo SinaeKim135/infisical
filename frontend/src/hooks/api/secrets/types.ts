@@ -24,6 +24,7 @@ export type SecretV3RawSanitized = {
   version: number;
   key: string;
   value?: string;
+  expiresAt?: string | null;
   secretValueHidden: boolean;
   comment?: string;
   reminderRepeatDays?: number | null;
@@ -70,6 +71,7 @@ export type SecretV3Raw = {
   skipMultilineEncoding?: boolean | null;
   metadata?: Record<string, string>;
   tags?: WsTag[];
+  expiresAt?: string | null;
   createdAt: string;
   updatedAt: string;
   isRotatedSecret?: boolean;

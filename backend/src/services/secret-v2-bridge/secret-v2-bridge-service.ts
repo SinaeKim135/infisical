@@ -96,6 +96,7 @@ import {
   TDeleteSecretDTO,
   TGetAccessibleSecretsDTO,
   TGetASecretDTO,
+  TGetExpiringSecretsDTO,
   TGetSecretReferencesTreeDTO,
   TGetSecretsDTO,
   TGetSecretsRawByFolderMappingsDTO,
@@ -152,6 +153,8 @@ export type TSecretV2BridgeServiceFactory = ReturnType<typeof secretV2BridgeServ
 /*
  * This service is a bridge from our old architecture towards the new architecture
  */
+const SECONDS_PER_DAY = 24 * 60 * 60;
+
 export const secretV2BridgeServiceFactory = ({
   secretDAL,
   projectDAL,
@@ -396,6 +399,7 @@ export const secretV2BridgeServiceFactory = ({
               : undefined,
             skipMultilineEncoding: inputSecretData.skipMultilineEncoding,
             key: secretName,
+            expiresAt: inputSecret.expiresAt,
             userId: inputSecret.type === SecretType.Personal ? actorId : null,
             tagIds: inputSecret.tagIds,
             references: nestedReferences,
@@ -679,6 +683,7 @@ export const secretV2BridgeServiceFactory = ({
               skipMultilineEncoding: inputSecret.skipMultilineEncoding,
               key: inputSecret.newSecretName || secretName,
               tags: inputSecret.tagIds,
+              expiresAt: inputSecret.expiresAt ?? null,
               // metadata: secretMetadata ? JSON.stringify(secretMetadata) : [],
               secretMetadata: secretMetadata?.map(({ key, value, isEncrypted }) => ({
                 key,
@@ -1290,7 +1295,7 @@ export const secretV2BridgeServiceFactory = ({
       folderIds: paths.map((p) => p.folderId),
       userId: actorId,
       tx: undefined,
-      filters: params
+      filters: { ...params, excludeExpiredSecrets: true }
     });
 
     let secrets: typeof unfilteredSecrets = [];
@@ -2849,6 +2854,52 @@ export const secretV2BridgeServiceFactory = ({
     return { message: "Successfully backfilled secret references" };
   };
 
+  const getExpiringSecrets = async ({
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod,
+    projectId,
+    environment,
+    secretPath,
+    days
+  }: TGetExpiringSecretsDTO) => {
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.SecretManager
+    });
+
+    const folder = await folderDAL.findBySecretPath(projectId, environment, secretPath);
+    if (!folder)
+      throw new NotFoundError({
+        message: `Folder with path '${secretPath}' in environment with slug '${environment}' not found`
+      });
+
+    const expiresBefore = new Date(Date.now() + days * SECONDS_PER_DAY);
+    const secrets = await secretDAL.findExpiringByFolderId(folder.id, expiresBefore);
+
+    return {
+      secrets: secrets
+        .filter((secret) =>
+          hasSecretReadValueOrDescribePermission(permission, ProjectPermissionSecretActions.DescribeSecret, {
+            environment,
+            secretPath,
+            secretName: secret.key
+          })
+        )
+        .map((secret) => ({
+          id: secret.id,
+          secretKey: secret.key,
+          expiresAt: secret.expiresAt as Date,
+          version: secret.version
+        }))
+    };
+  };
+
   const moveSecrets = async ({
     sourceEnvironment,
     sourceSecretPath,
@@ -4001,6 +4052,7 @@ export const secretV2BridgeServiceFactory = ({
     getSecretVersions,
     backfillSecretReferences,
     moveSecrets,
+    getExpiringSecrets,
     getSecretsCount,
     getSecretsCountMultiEnv,
     getSecretsMultiEnv,

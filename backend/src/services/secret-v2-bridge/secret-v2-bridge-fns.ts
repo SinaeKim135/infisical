@@ -603,6 +603,7 @@ export const reshapeBridgeSecret = (
   secretReminderNote: secret.reminderNote,
   metadata: secret.metadata,
   secretMetadata: secret.secretMetadata,
+  expiresAt: secret.expiresAt,
   createdAt: secret.createdAt,
   updatedAt: secret.updatedAt,
   isRotatedSecret: secret.isRotatedSecret,
