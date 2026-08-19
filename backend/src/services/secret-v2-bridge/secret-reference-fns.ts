@@ -70,7 +70,7 @@ export const remapSecretReferenceEnvironment = (
     if (!body.includes(".")) return reference;
 
     const [environment, ...rest] = body.split(".");
-    if (environment !== sourceEnvironment) return reference;
+    if (environment !== destinationEnvironment) return reference;
 
     return `\${${[destinationEnvironment, ...rest].join(".")}}`;
   });
