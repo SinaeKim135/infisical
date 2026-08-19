@@ -40,7 +40,7 @@ export const identityAccessTokenServiceFactory = ({
       createdAt: accessTokenCreatedAt
     } = identityAccessToken;
 
-    if (accessTokenNumUsesLimit > 0 && accessTokenNumUses > 0 && accessTokenNumUses >= accessTokenNumUsesLimit) {
+    if (accessTokenNumUsesLimit > 0 && accessTokenNumUses > 0 && accessTokenNumUses > accessTokenNumUsesLimit) {
       await identityAccessTokenDAL.deleteById(tokenId);
       throw new UnauthorizedError({
         message: "Unable to renew because access token number of uses limit reached"
