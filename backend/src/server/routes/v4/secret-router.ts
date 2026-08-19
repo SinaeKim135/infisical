@@ -434,6 +434,17 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
           .transform((val) => (val.at(-1) === "\n" ? `${val.trim()}\n` : val.trim()))
           .describe(RAW_SECRETS.CREATE.secretValue),
         secretComment: z.string().trim().optional().default("").describe(RAW_SECRETS.CREATE.secretComment),
+        expiresAt: z
+          .string()
+          .datetime()
+          .nullish()
+          .transform((val) => (val ? new Date(val) : val))
+          .superRefine((val, ctx) => {
+            if (val instanceof Date && val.getTime() <= Date.now()) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "expiresAt must be in the future" });
+            }
+          })
+          .describe("When the secret stops being served. Omit to leave it unchanged; null clears it."),
         secretMetadata: ResourceMetadataWithEncryptionSchema.optional(),
         tagIds: z.string().array().optional().describe(RAW_SECRETS.CREATE.tagIds),
         skipMultilineEncoding: z.boolean().nullish().describe(RAW_SECRETS.CREATE.skipMultilineEncoding),
@@ -841,6 +852,54 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
   });
 
   server.route({
+    method: "GET",
+    url: "/expiring-soon",
+    config: {
+      rateLimit: secretsLimit
+    },
+    schema: {
+      hide: false,
+      operationId: "listExpiringSecretsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "List secrets due to expire within the next N days",
+      security: [{ bearerAuth: [] }],
+      querystring: z.object({
+        projectId: z.string().trim().describe("The ID of the project to look in."),
+        environment: z.string().trim().describe("The slug of the environment to look in."),
+        secretPath: z.string().trim().default("/").transform(removeTrailingSlash).describe("The path to look in."),
+        days: z.coerce.number().int().positive().max(365).default(7).describe("How far ahead to look, in days.")
+      }),
+      response: {
+        200: z.object({
+          secrets: z
+            .object({
+              id: z.string(),
+              secretKey: z.string(),
+              expiresAt: z.date(),
+              version: z.number()
+            })
+            .array()
+        })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { projectId, environment, secretPath, days } = req.query;
+
+      return server.services.secret.getExpiringSecrets({
+        actorId: req.permission.id,
+        actor: req.permission.type,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        projectId,
+        environment,
+        secretPath,
+        days
+      });
+    }
+  });
+
+  server.route({
     method: "POST",
     url: "/move",
     config: {
@@ -1075,6 +1134,17 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
               .optional()
               .describe(RAW_SECRETS.UPDATE.secretPath),
             secretComment: z.string().trim().optional().describe(RAW_SECRETS.UPDATE.secretComment),
+            expiresAt: z
+              .string()
+              .datetime()
+              .nullish()
+              .transform((val) => (val ? new Date(val) : val))
+              .superRefine((val, ctx) => {
+                if (val instanceof Date && val.getTime() <= Date.now()) {
+                  ctx.addIssue({ code: z.ZodIssueCode.custom, message: "expiresAt must be in the future" });
+                }
+              })
+              .describe("When the secret stops being served. Omit to leave it unchanged; null clears it."),
             skipMultilineEncoding: z.boolean().optional().describe(RAW_SECRETS.UPDATE.skipMultilineEncoding),
             newSecretName: SecretNameSchema.optional().describe(RAW_SECRETS.UPDATE.newSecretName),
             tagIds: z.string().array().optional().describe(RAW_SECRETS.UPDATE.tagIds),

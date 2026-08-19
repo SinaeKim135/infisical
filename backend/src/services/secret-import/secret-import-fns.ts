@@ -304,7 +304,8 @@ export const fnSecretsV2FromImports = async ({
     if (shouldIncludePersonal) {
       const allSecrets = await secretDAL.findByFolderIds({
         folderIds: importedFolderIds,
-        userId
+        userId,
+        filters: { excludeExpiredSecrets: true }
       });
 
       if (personalOverridesBehavior === PersonalOverridesBehavior.Priority) {
