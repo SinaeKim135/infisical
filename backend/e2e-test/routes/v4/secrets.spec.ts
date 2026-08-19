@@ -7,6 +7,7 @@ type TRawSecret = {
   secretValue: string;
   secretComment?: string;
   version: number;
+  expiresAt?: string | null;
 };
 
 const createSecret = async (dto: { path: string; key: string; value: string; comment: string; type?: SecretType }) => {
@@ -232,12 +233,60 @@ describe.each([{ auth: AuthMode.JWT }, { auth: AuthMode.IDENTITY_ACCESS_TOKEN }]
       return secrets;
     };
 
+    test("Create secret with future expiresAt sets and returns expiry", async () => {
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const createSecretReqBody = {
+        projectId: seedData1.projectV3.id,
+        environment: seedData1.environment.slug,
+        type: SecretType.Shared,
+        secretPath: "/",
+        secretKey: "EXPIRY-TEST-KEY",
+        secretValue: "expiry-value",
+        secretComment: "",
+        expiresAt: futureDate
+      };
+      const createSecRes = await testServer.inject({
+        method: "POST",
+        url: `/api/v4/secrets/EXPIRY-TEST-KEY`,
+        headers: { authorization: `Bearer ${authToken}` },
+        body: createSecretReqBody
+      });
+      expect(createSecRes.statusCode).toBe(200);
+      const payload = JSON.parse(createSecRes.payload);
+      expect(payload).toHaveProperty("secret");
+      expect(payload.secret.expiresAt).toBeDefined();
+
+      await deleteSecret({ path: "/", key: "EXPIRY-TEST-KEY" });
+    });
+
+    test("Create secret with past expiresAt is rejected with 400", async () => {
+      const pastDate = new Date(Date.now() - 1000).toISOString();
+      const createSecretReqBody = {
+        projectId: seedData1.projectV3.id,
+        environment: seedData1.environment.slug,
+        type: SecretType.Shared,
+        secretPath: "/",
+        secretKey: "EXPIRY-PAST-KEY",
+        secretValue: "expiry-value",
+        secretComment: "",
+        expiresAt: pastDate
+      };
+      const createSecRes = await testServer.inject({
+        method: "POST",
+        url: `/api/v4/secrets/EXPIRY-PAST-KEY`,
+        headers: { authorization: `Bearer ${authToken}` },
+        body: createSecretReqBody
+      });
+      expect(createSecRes.statusCode).toBe(400);
+    });
+
     test.each(secretTestCases)("Create secret in path $path", async ({ secret, path }) => {
       const createdSecret = await createSecret({ path, ...secret });
       expect(createdSecret.secretKey).toEqual(secret.key);
       expect(createdSecret.secretValue).toEqual(secret.value);
       expect(createdSecret.secretComment || "").toEqual(secret.comment);
       expect(createdSecret.version).toEqual(1);
+      expect(createdSecret).toHaveProperty("expiresAt");
 
       const secrets = await getSecrets(seedData1.environment.slug, path, false);
       expect(secrets).toEqual(
