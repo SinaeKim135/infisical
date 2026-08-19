@@ -4,6 +4,7 @@ import {
   buildChildrenMap,
   buildFolderIdMap,
   buildFolderPath,
+  remapRenamedPath,
   resolveClosestFolder,
   resolvePathToFolder
 } from "./secret-folder-fns";
@@ -337,5 +338,40 @@ describe("edge cases", () => {
     expect(resolveClosestFolder(childrenMap, [])?.id).toBe("custom-root");
     expect(resolveClosestFolder(childrenMap, ["folder-a"])?.id).toBe("child-1");
     expect(resolveClosestFolder(childrenMap, ["nonexistent"])?.id).toBe("custom-root");
+  });
+});
+
+describe("remapRenamedPath", () => {
+  test("remaps the renamed folder's own path", () => {
+    expect(remapRenamedPath("/app", "/app", "/web")).toBe("/web");
+  });
+
+  test("remaps a direct child of the renamed folder", () => {
+    expect(remapRenamedPath("/app/db", "/app", "/web")).toBe("/web/db");
+  });
+
+  test("remaps a deep descendant of the renamed folder", () => {
+    expect(remapRenamedPath("/app/db/primary", "/app", "/web")).toBe("/web/db/primary");
+  });
+
+  test("leaves a sibling sharing the same name prefix alone", () => {
+    // Path-segment aware: renaming /app must not touch /app2
+    expect(remapRenamedPath("/app2", "/app", "/web")).toBeNull();
+  });
+
+  test("leaves descendants of a same-prefix sibling alone", () => {
+    expect(remapRenamedPath("/app2/db", "/app", "/web")).toBeNull();
+  });
+
+  test("returns null for an unrelated path", () => {
+    expect(remapRenamedPath("/other", "/app", "/web")).toBeNull();
+  });
+
+  test("preserves the untouched prefix when a nested folder is renamed", () => {
+    expect(remapRenamedPath("/a/b/c", "/a/b", "/a/z")).toBe("/a/z/c");
+  });
+
+  test("leaves an ancestor of the renamed folder alone", () => {
+    expect(remapRenamedPath("/app", "/app/db", "/app/store")).toBeNull();
   });
 });
