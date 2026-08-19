@@ -119,10 +119,7 @@ export const secretImportDALFactory = (db: TDbClient) => {
   const findByImportPathPrefix = async (envId: string, importPath: string, tx?: Knex) => {
     try {
       return await (tx || db.replicaNode())(TableName.SecretImport)
-        .where({ importEnv: envId })
-        .where((bd) => {
-          void bd.where({ importPath }).orWhereLike("importPath", `${importPath === "/" ? "" : importPath}/%`);
-        })
+        .where({ importEnv: envId, importPath })
         .select(selectAllTableCols(TableName.SecretImport));
     } catch (error) {
       throw new DatabaseError({ error, name: "FindByImportPathPrefix" });
