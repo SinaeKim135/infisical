@@ -900,6 +900,76 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
 
   server.route({
     method: "POST",
+    url: "/copy",
+    config: {
+      rateLimit: secretsLimit
+    },
+    schema: {
+      hide: false,
+      operationId: "copySecretsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Copy secrets into another environment or path, leaving the source untouched",
+      security: [{ bearerAuth: [] }],
+      body: z.object({
+        projectId: z.string().trim().describe("The ID of the project the secrets belong to."),
+        sourceEnvironment: z.string().trim().describe("The slug of the environment to copy from."),
+        sourceSecretPath: z
+          .string()
+          .trim()
+          .default("/")
+          .transform(removeTrailingSlash)
+          .describe("The path to copy from."),
+        destinationEnvironment: z.string().trim().describe("The slug of the environment to copy into."),
+        destinationSecretPath: z
+          .string()
+          .trim()
+          .default("/")
+          .transform(removeTrailingSlash)
+          .describe("The path to copy into."),
+        secretIds: z.string().array().min(1).describe("The IDs of the secrets to copy."),
+        shouldOverwrite: z
+          .boolean()
+          .default(false)
+          .describe("Whether to replace destination secrets whose key already exists.")
+      }),
+      response: {
+        200: z.object({
+          isDestinationUpdated: z.boolean(),
+          copiedCount: z.number()
+        })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { isDestinationUpdated, copiedCount } = await server.services.secret.copySecrets({
+        actorId: req.permission.id,
+        actor: req.permission.type,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        ...req.body
+      });
+
+      await server.services.auditLog.createAuditLog({
+        projectId: req.body.projectId,
+        ...req.auditLogInfo,
+        event: {
+          type: EventType.MOVE_SECRETS,
+          metadata: {
+            sourceEnvironment: req.body.sourceEnvironment,
+            sourceSecretPath: req.body.sourceSecretPath,
+            destinationEnvironment: req.body.destinationEnvironment,
+            destinationSecretPath: req.body.destinationSecretPath,
+            secretIds: req.body.secretIds
+          }
+        }
+      });
+
+      return { isDestinationUpdated, copiedCount };
+    }
+  });
+
+  server.route({
+    method: "POST",
     url: "/batch",
     config: {
       rateLimit: secretsLimit

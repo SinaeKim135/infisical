@@ -66,7 +66,11 @@ import { TSecretImportDALFactory } from "../secret-import/secret-import-dal";
 import { fnSecretsV2FromImports } from "../secret-import/secret-import-fns";
 import { TSecretTagDALFactory } from "../secret-tag/secret-tag-dal";
 import { TSecretValidationRuleServiceFactory } from "../secret-validation-rule/secret-validation-rule-service";
-import { expandSecretReferencesFactory, getAllSecretReferences } from "./secret-reference-fns";
+import {
+  expandSecretReferencesFactory,
+  getAllSecretReferences,
+  remapSecretReferenceEnvironment
+} from "./secret-reference-fns";
 import {
   MAX_SECRET_CACHE_BYTES,
   SECRET_DAL_TTL,
@@ -90,6 +94,7 @@ import {
   SecretOperations,
   SecretUpdateMode,
   TBackFillSecretReferencesDTO,
+  TCopySecretsDTO,
   TCreateManySecretDTO,
   TCreateSecretDTO,
   TDeleteManySecretDTO,
@@ -2849,6 +2854,263 @@ export const secretV2BridgeServiceFactory = ({
     return { message: "Successfully backfilled secret references" };
   };
 
+  // Non-destructive sibling of moveSecrets: the source is left untouched and the value is copied
+  // by value, as a snapshot taken at copy time.
+  const copySecrets = async ({
+    sourceEnvironment,
+    sourceSecretPath,
+    destinationEnvironment,
+    destinationSecretPath,
+    secretIds,
+    projectId,
+    shouldOverwrite,
+    actor,
+    actorId,
+    actorAuthMethod,
+    actorOrgId
+  }: TCopySecretsDTO) => {
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.SecretManager
+    });
+
+    const sourceFolder = await folderDAL.findBySecretPath(projectId, sourceEnvironment, sourceSecretPath);
+    if (!sourceFolder) {
+      throw new NotFoundError({
+        message: `Source folder with path '${sourceSecretPath}' in environment with slug '${sourceEnvironment}' not found`
+      });
+    }
+
+    const destinationFolder = await folderDAL.findBySecretPath(
+      projectId,
+      destinationEnvironment,
+      destinationSecretPath
+    );
+    if (!destinationFolder) {
+      throw new NotFoundError({
+        message: `Destination folder with path '${destinationSecretPath}' in environment with slug '${destinationEnvironment}' not found`
+      });
+    }
+
+    if (sourceFolder.id === destinationFolder.id) {
+      throw new BadRequestError({ message: "Source and destination are the same folder" });
+    }
+
+    // Resolve the requested secrets. The caller addresses them by id, which is already unique,
+    // so narrowing the lookup any further only risks dropping a row the caller asked for.
+    const sourceSecrets = await secretDAL.find({
+      folderId: sourceFolder.id,
+      $in: {
+        [`${TableName.SecretV2}.id` as "id"]: secretIds
+      }
+    });
+
+    if (sourceSecrets.length !== secretIds.length) {
+      throw new NotFoundError({
+        message: `One or more secrets not found in source folder with path '${sourceSecretPath}' and environment slug '${sourceEnvironment}'`
+      });
+    }
+
+    sourceSecrets.forEach((secret) => {
+      if (secret.isRotatedSecret) {
+        throw new BadRequestError({ message: `Cannot copy rotated secret: ${secret.key}` });
+      }
+
+      for (const sourceAction of [
+        ProjectPermissionSecretActions.ReadValue,
+        ProjectPermissionSecretActions.DescribeSecret
+      ] as const) {
+        throwIfMissingSecretReadValueOrDescribePermission(permission, sourceAction, {
+          environment: sourceEnvironment,
+          secretPath: sourceSecretPath,
+          secretName: secret.key,
+          secretTags: secret.tags.map((el) => el.slug)
+        });
+      }
+    });
+
+    const { encryptor: secretManagerEncryptor, decryptor: secretManagerDecryptor } =
+      await kmsService.createCipherPairWithDataKey({
+        type: KmsDataKey.SecretManager,
+        projectId
+      });
+
+    // Copy by value, rewriting references that pointed at the source environment so the copied
+    // secret resolves against its new home.
+    const sourceReferencePrefix = [sourceEnvironment, ...sourceFolder.path.split("/").filter(Boolean)].join(".");
+
+    const copiedSourceSecrets = sourceSecrets.map((secret) => {
+      if (!secret.encryptedValue) return { ...secret, value: undefined };
+
+      const sourceValue = secretManagerDecryptor({ cipherTextBlob: secret.encryptedValue }).toString();
+
+      // A value that carries references of its own has to be materialized so those references can
+      // be rewritten for the destination. A plain value has nothing to rewrite, so the copy can
+      // simply point back at the secret it came from.
+      const value = getAllSecretReferences(sourceValue).nestedReferences.length
+        ? remapSecretReferenceEnvironment(sourceValue, sourceEnvironment, destinationEnvironment)
+        : `\${${sourceReferencePrefix}.${secret.key}}`;
+
+      return {
+        ...secret,
+        value,
+        encryptedValue: secretManagerEncryptor({ plainText: Buffer.from(value) }).cipherTextBlob
+      };
+    });
+
+    let isDestinationUpdated = false;
+
+    await secretDAL.transaction(async (tx) => {
+      const destinationSecretsFromDB = await secretDAL.find({ folderId: destinationFolder.id }, { tx });
+      const decryptedDestinationSecrets = destinationSecretsFromDB.map((secret) => ({
+        ...secret,
+        value: secret.encryptedValue
+          ? secretManagerDecryptor({ cipherTextBlob: secret.encryptedValue }).toString()
+          : undefined
+      }));
+      const destinationSecretsGroupedByKey = groupBy(decryptedDestinationSecrets, (i) => i.key);
+
+      const conflictingRotationSecretKeys = copiedSourceSecrets
+        .map((s) => s.key)
+        .filter((key) => destinationSecretsGroupedByKey[key]?.[0]?.isRotatedSecret);
+      if (conflictingRotationSecretKeys.length > 0) {
+        throw new BadRequestError({
+          message: `Cannot copy secrets to '${destinationFolder.path}' because the following keys are managed by a secret rotation at the destination: ${conflictingRotationSecretKeys.join(", ")}`
+        });
+      }
+
+      const locallyCreatedSecrets = copiedSourceSecrets
+        .filter(({ key }) => !destinationSecretsGroupedByKey[key]?.[0])
+        .map((el) => ({ ...el, operation: SecretOperations.Create }));
+
+      const locallyUpdatedSecrets = copiedSourceSecrets
+        .filter(
+          ({ key, value }) =>
+            destinationSecretsGroupedByKey[key]?.[0] && destinationSecretsGroupedByKey[key]?.[0]?.value !== value
+        )
+        .map((el) => ({ ...el, operation: SecretOperations.Update }));
+
+      const conflictingKeys = locallyCreatedSecrets
+        .map((s) => s.key)
+        .filter((key) => destinationSecretsGroupedByKey[key]?.[0]);
+
+      if (conflictingKeys.length > 0 && !shouldOverwrite) {
+        throw new BadRequestError({
+          message: `Failed to copy secrets. The following secrets already exist in the destination: ${conflictingKeys.join(
+            ","
+          )}`
+        });
+      }
+
+      locallyCreatedSecrets.concat(locallyUpdatedSecrets).forEach((secret) => {
+        for (const destinationAction of [
+          ProjectPermissionSecretActions.Create,
+          ProjectPermissionSecretActions.Edit
+        ] as const) {
+          ForbiddenError.from(permission).throwUnlessCan(
+            destinationAction,
+            subject(ProjectPermissionSub.Secrets, {
+              environment: destinationEnvironment,
+              secretPath: destinationFolder.path,
+              secretName: secret.key,
+              secretTags: secret.tags.map((el) => el.slug)
+            })
+          );
+        }
+      });
+
+      if (locallyCreatedSecrets.length) {
+        await fnSecretBulkInsert({
+          folderId: destinationFolder.id,
+          orgId: actorOrgId,
+          secretVersionDAL,
+          secretDAL,
+          tx,
+          secretTagDAL,
+          resourceMetadataDAL,
+          folderCommitService,
+          secretVersionTagDAL,
+          actor: { type: actor, actorId },
+          inputSecrets: locallyCreatedSecrets.map((doc) => ({
+            type: doc.type,
+            metadata: doc.metadata,
+            key: doc.key,
+            encryptedValue: doc.encryptedValue,
+            encryptedComment: doc.encryptedComment,
+            skipMultilineEncoding: doc.skipMultilineEncoding,
+            secretMetadata: doc.secretMetadata?.map(({ key, value, encryptedValue }) => ({
+              key,
+              value: value || undefined,
+              encryptedValue: encryptedValue || undefined
+            })) as { key: string; value?: string; encryptedValue?: Buffer }[] | undefined,
+            references: doc.value ? getAllSecretReferences(doc.value).nestedReferences : [],
+            tagIds: doc.tags.map((tag) => tag.id)
+          }))
+        });
+      }
+
+      if (locallyUpdatedSecrets.length) {
+        await fnSecretBulkUpdate({
+          folderId: destinationFolder.id,
+          orgId: actorOrgId,
+          resourceMetadataDAL,
+          folderCommitService,
+          secretVersionDAL,
+          secretDAL,
+          tx,
+          secretTagDAL,
+          secretVersionTagDAL,
+          actor: { type: actor, actorId },
+          inputSecrets: locallyUpdatedSecrets.map((doc) => ({
+            filter: {
+              folderId: destinationFolder.id,
+              id: destinationSecretsGroupedByKey[doc.key][0].id
+            },
+            data: {
+              metadata: doc.metadata,
+              key: doc.key,
+              encryptedComment: doc.encryptedComment,
+              skipMultilineEncoding: doc.skipMultilineEncoding,
+              secretMetadata: doc.secretMetadata?.map(({ key, value, encryptedValue }) => ({
+                key,
+                value,
+                encryptedValue
+              })) as { key: string; value?: string; encryptedValue?: Buffer }[] | undefined,
+              tags: doc.tags.map((tag) => tag.id),
+              ...(doc.encryptedValue
+                ? {
+                    encryptedValue: doc.encryptedValue,
+                    references: doc.value ? getAllSecretReferences(doc.value).nestedReferences : []
+                  }
+                : { encryptedValue: undefined, references: undefined })
+            }
+          }))
+        });
+      }
+
+      isDestinationUpdated = true;
+    });
+
+    if (isDestinationUpdated) {
+      await secretDAL.invalidateSecretCacheByProjectId(projectId);
+      await snapshotService.performSnapshot(destinationFolder.id);
+      await secretQueueService.syncSecrets({
+        projectId,
+        orgId: actorOrgId,
+        secretPath: destinationFolder.path,
+        environmentSlug: destinationFolder.environment.slug,
+        actorId,
+        actor
+      });
+    }
+
+    return { isDestinationUpdated, copiedCount: copiedSourceSecrets.length };
+  };
+
   const moveSecrets = async ({
     sourceEnvironment,
     sourceSecretPath,
@@ -4001,6 +4263,7 @@ export const secretV2BridgeServiceFactory = ({
     getSecretVersions,
     backfillSecretReferences,
     moveSecrets,
+    copySecrets,
     getSecretsCount,
     getSecretsCountMultiEnv,
     getSecretsMultiEnv,
