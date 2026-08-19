@@ -120,6 +120,35 @@ describe("Secret Folder Router", async () => {
     await deleteFolder({ path: "/level1/level2", id: newFolder.id });
   });
 
+  test("Update a folder returns cascade counters", async () => {
+    const newFolder = await createFolder({ name: "folder-to-rename", path: "/level1/level2" });
+
+    const res = await testServer.inject({
+      method: "PATCH",
+      url: `/api/v2/folders/${newFolder.id}`,
+      headers: {
+        authorization: `Bearer ${jwtAuthToken}`
+      },
+      body: {
+        projectId: seedData1.project.id,
+        environment: seedData1.environment.slug,
+        name: "folder-renamed",
+        path: "/level1/level2"
+      }
+    });
+
+    expect(res.statusCode).toBe(200);
+    const payload = JSON.parse(res.payload);
+    expect(payload).toHaveProperty("folder");
+    expect(payload.folder.name).toEqual("folder-renamed");
+    expect(payload.folder.path).toEqual("/level1/level2/folder-renamed");
+    // The rename cascade reports how much it repointed; both counters are required in the response.
+    expect(typeof payload.updatedImportsCount).toBe("number");
+    expect(typeof payload.updatedReferencesCount).toBe("number");
+
+    await deleteFolder({ path: "/level1/level2", id: newFolder.id });
+  });
+
   test("Delete a deep folder", async () => {
     const newFolder = await createFolder({ name: "folder-updated", path: "/level1/level2" });
     const res = await testServer.inject({
