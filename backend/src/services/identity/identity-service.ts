@@ -18,6 +18,7 @@ import { getIdentityActiveLockoutAuthMethods } from "@app/services/identity-v2/i
 
 import { TAdditionalPrivilegeDALFactory } from "../additional-privilege/additional-privilege-dal";
 import { ActorType } from "../auth/auth-type";
+import { TIdentityAccessTokenDALFactory } from "../identity-access-token/identity-access-token-dal";
 import { TMembershipRoleDALFactory } from "../membership/membership-role-dal";
 import { TMembershipIdentityDALFactory } from "../membership-identity/membership-identity-dal";
 import { TOrgDALFactory } from "../org/org-dal";
@@ -29,8 +30,10 @@ import {
   TCreateIdentityDTO,
   TDeleteIdentityDTO,
   TGetIdentityByIdDTO,
+  TListAccessTokensDTO,
   TListOrgIdentitiesByOrgIdDTO,
   TListProjectIdentitiesByIdentityIdDTO,
+  TRevokeAccessTokenByIdDTO,
   TSearchOrgIdentitiesByOrgIdDTO,
   TUpdateIdentityDTO
 } from "./identity-types";
@@ -48,6 +51,7 @@ type TIdentityServiceFactoryDep = {
   keyStore: Pick<TKeyStoreFactory, "getKeysByPattern" | "getItem">;
   orgDAL: Pick<TOrgDALFactory, "findById" | "findEffectiveOrgMembership">;
   additionalPrivilegeDAL: Pick<TAdditionalPrivilegeDALFactory, "delete">;
+  identityAccessTokenDAL: Pick<TIdentityAccessTokenDALFactory, "find" | "findOne" | "update">;
 };
 
 export type TIdentityServiceFactory = ReturnType<typeof identityServiceFactory>;
@@ -64,7 +68,8 @@ export const identityServiceFactory = ({
   orgDAL,
   membershipIdentityDAL,
   membershipRoleDAL,
-  additionalPrivilegeDAL
+  additionalPrivilegeDAL,
+  identityAccessTokenDAL
 }: TIdentityServiceFactoryDep) => {
   const createIdentity = async ({
     name,
@@ -333,6 +338,88 @@ export const identityServiceFactory = ({
     };
   };
 
+  // Auth-method-agnostic view of the tokens an identity currently holds. Token-auth identities
+  // already had this; universal auth and the rest had no way to see or revoke a single token.
+  const $resolveIdentityForTokenAccess = async ({
+    identityId,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod,
+    action
+  }: Omit<TListAccessTokensDTO, "offset" | "limit"> & { action: OrgPermissionIdentityActions }) => {
+    const doc = await identityOrgMembershipDAL.find({
+      [`${TableName.Membership}.actorIdentityId` as "actorIdentityId"]: identityId,
+      scope: AccessScope.Organization,
+      scopeOrgId: actorOrgId
+    });
+    const identity = doc[0];
+    if (!identity) throw new NotFoundError({ message: `Failed to find identity with id ${identityId}` });
+
+    const { permission } = await permissionService.getOrgPermission({
+      scope: OrganizationActionScope.Any,
+      actor,
+      actorId,
+      orgId: identity.orgId,
+      actorAuthMethod,
+      actorOrgId
+    });
+    ForbiddenError.from(permission).throwUnlessCan(action, OrgPermissionSubjects.Identity);
+
+    return identity;
+  };
+
+  const listAccessTokens = async ({ identityId, offset = 0, limit = 100, ...dto }: TListAccessTokensDTO) => {
+    await $resolveIdentityForTokenAccess({
+      identityId,
+      ...dto,
+      action: OrgPermissionIdentityActions.Read
+    });
+
+    const tokens = await identityAccessTokenDAL.find({ identityId }, { offset, limit, sort: [["createdAt", "desc"]] });
+
+    return {
+      tokens: tokens.map((token) => {
+        // A TTL of 0 means the token never expires on its own.
+        const ttlSeconds = Number(token.accessTokenTTL);
+        const expiresAt = ttlSeconds > 0 ? new Date(new Date(token.createdAt).getTime() + ttlSeconds * 1000) : null;
+
+        return {
+          id: token.id,
+          authMethod: token.authMethod,
+          name: token.name,
+          createdAt: token.createdAt,
+          accessTokenLastRenewedAt: token.accessTokenLastRenewedAt ?? null,
+          accessTokenLastUsedAt: token.accessTokenLastUsedAt ?? null,
+          accessTokenNumUses: Number(token.accessTokenNumUses),
+          accessTokenNumUsesLimit: Number(token.accessTokenNumUsesLimit),
+          expiresAt,
+          isAccessTokenRevoked: Boolean(token.isAccessTokenRevoked)
+        };
+      })
+    };
+  };
+
+  const revokeAccessTokenById = async ({ identityId, tokenId, ...dto }: TRevokeAccessTokenByIdDTO) => {
+    await $resolveIdentityForTokenAccess({
+      identityId,
+      ...dto,
+      action: OrgPermissionIdentityActions.Edit
+    });
+
+    const token = await identityAccessTokenDAL.findOne({
+      [`${TableName.IdentityAccessToken}.id` as "id"]: tokenId,
+      [`${TableName.IdentityAccessToken}.identityId` as "identityId"]: identityId
+    });
+    if (!token) throw new NotFoundError({ message: `Token with ID ${tokenId} not found on this identity` });
+
+    // Scope the write to the identity so a token id belonging to another identity can never be
+    // revoked through this route.
+    const [revokedToken] = await identityAccessTokenDAL.update({ identityId }, { isAccessTokenRevoked: true });
+
+    return { revokedToken };
+  };
+
   const deleteIdentity = async ({
     actorId,
     actor,
@@ -516,6 +603,8 @@ export const identityServiceFactory = ({
     deleteIdentity,
     listOrgIdentities,
     getIdentityById,
+    listAccessTokens,
+    revokeAccessTokenById,
     searchOrgIdentities,
     listProjectIdentitiesByIdentityId
   };

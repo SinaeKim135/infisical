@@ -548,4 +548,102 @@ export const registerIdentityRouter = async (server: FastifyZodProvider) => {
       return { identityDetails: { organization } };
     }
   });
+
+  server.route({
+    method: "GET",
+    url: "/:identityId/access-tokens",
+    config: {
+      rateLimit: readLimit
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    schema: {
+      operationId: "listMachineIdentityAccessTokens",
+      description: "List the access tokens issued to a machine identity, whatever auth method issued them",
+      security: [{ bearerAuth: [] }],
+      params: z.object({
+        identityId: z.string().describe("The ID of the machine identity to list tokens for.")
+      }),
+      querystring: z.object({
+        offset: z.coerce.number().min(0).default(0),
+        limit: z.coerce.number().min(1).max(100).default(100)
+      }),
+      response: {
+        200: z.object({
+          tokens: z
+            .object({
+              id: z.string(),
+              authMethod: z.string(),
+              name: z.string().nullable().optional(),
+              createdAt: z.date(),
+              accessTokenLastRenewedAt: z.date().nullable(),
+              accessTokenLastUsedAt: z.date().nullable(),
+              accessTokenNumUses: z.number(),
+              accessTokenNumUsesLimit: z.number(),
+              expiresAt: z.date().nullable(),
+              isAccessTokenRevoked: z.boolean()
+            })
+            .array()
+        })
+      }
+    },
+    handler: async (req) => {
+      return server.services.identityV1.listAccessTokens({
+        identityId: req.params.identityId,
+        offset: req.query.offset,
+        limit: req.query.limit,
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId
+      });
+    }
+  });
+
+  server.route({
+    method: "POST",
+    url: "/:identityId/access-tokens/:tokenId/revoke",
+    config: {
+      rateLimit: writeLimit
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    schema: {
+      operationId: "revokeMachineIdentityAccessToken",
+      description: "Revoke a single access token without disturbing the identity's other tokens",
+      security: [{ bearerAuth: [] }],
+      params: z.object({
+        identityId: z.string().describe("The ID of the machine identity the token belongs to."),
+        tokenId: z.string().describe("The ID of the token to revoke.")
+      }),
+      response: {
+        200: z.object({
+          message: z.string(),
+          tokenId: z.string()
+        })
+      }
+    },
+    handler: async (req) => {
+      const { revokedToken } = await server.services.identityV1.revokeAccessTokenById({
+        identityId: req.params.identityId,
+        tokenId: req.params.tokenId,
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId
+      });
+
+      await server.services.auditLog.createAuditLog({
+        ...req.auditLogInfo,
+        orgId: req.permission.orgId,
+        event: {
+          type: EventType.REVOKE_IDENTITY_UNIVERSAL_AUTH_CLIENT_SECRET,
+          metadata: {
+            identityId: req.params.identityId,
+            clientSecretId: revokedToken.id
+          }
+        }
+      });
+
+      return { message: "Successfully revoked access token", tokenId: revokedToken.id };
+    }
+  });
 };

@@ -27,6 +27,17 @@ export type TGetIdentityByIdDTO = {
   id: string;
 } & Omit<TOrgPermission, "orgId">;
 
+export type TListAccessTokensDTO = {
+  identityId: string;
+  offset?: number;
+  limit?: number;
+} & Omit<TOrgPermission, "orgId">;
+
+export type TRevokeAccessTokenByIdDTO = {
+  identityId: string;
+  tokenId: string;
+} & Omit<TOrgPermission, "orgId">;
+
 export interface TIdentityTrustedIp {
   ipAddress: string;
   type: IPType;

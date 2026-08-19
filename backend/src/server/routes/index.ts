@@ -1868,6 +1868,7 @@ export const registerRoutes = async (
     additionalPrivilegeDAL,
     permissionService,
     identityDAL,
+    identityAccessTokenDAL,
     identityOrgMembershipDAL,
     identityProjectDAL,
     licenseService,
