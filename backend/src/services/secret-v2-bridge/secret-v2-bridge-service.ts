@@ -4076,7 +4076,6 @@ export const secretV2BridgeServiceFactory = ({
           [`${TableName.SecretV2}Id` as const]: secret.id
         }))
       );
-      await secretDAL.invalidateSecretCacheByProjectId(dto.projectId);
     }
 
     return {
@@ -4110,7 +4109,6 @@ export const secretV2BridgeServiceFactory = ({
       await secretTagDAL.deleteTagsToSecretV2({
         $in: { [`${TableName.SecretTag}Id` as const]: tagIdsToDetach }
       });
-      await secretDAL.invalidateSecretCacheByProjectId(dto.projectId);
     }
 
     return {
