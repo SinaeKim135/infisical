@@ -1,0 +1,221 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"name\": \"test-identity\", \"organizationId\": \"180870b7-f464-4740-8ffe-9d11c9245ea7\", \"role\": \"member\"}",
+    "ResponseBody": "{\"identity\": {\"id\": \"22222222-2222-2222-2222-222222222222\", \"name\": \"test-identity\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/identities",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:17.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug",
+    "UniqueFields": [
+      "name"
+    ]
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"accessTokenTTL\": 3600, \"accessTokenMaxTTL\": 7200, \"accessTokenNumUsesLimit\": 10, \"accessTokenTrustedIps\": [{\"ipAddress\": \"0.0.0.0\", \"type\": \"ipv4\"}]}",
+    "ResponseBody": "{\"identityTokenAuth\": {\"identityId\": \"22222222-2222-2222-2222-222222222222\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/auth/token-auth/identities/22222222-2222-2222-2222-222222222222",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:18.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"name\": \"token-a\"}",
+    "ResponseBody": "{\"accessToken\": \"eyJ.token-a\", \"identityId\": \"22222222-2222-2222-2222-222222222222\"}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/auth/token-auth/identities/22222222-2222-2222-2222-222222222222/tokens",
+    "QueryParams": {},
+    "StatusCode": 201,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:19.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"name\": \"token-b\"}",
+    "ResponseBody": "{\"accessToken\": \"eyJ.token-b\", \"identityId\": \"22222222-2222-2222-2222-222222222222\"}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/auth/token-auth/identities/22222222-2222-2222-2222-222222222222/tokens",
+    "QueryParams": {},
+    "StatusCode": 201,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:20.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"tokens\": [{\"id\": \"33333333-3333-3333-3333-333333333333\", \"name\": \"token-a\", \"isAccessTokenRevoked\": false}, {\"id\": \"44444444-4444-4444-4444-444444444444\", \"name\": \"token-b\", \"isAccessTokenRevoked\": false}]}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v1/auth/token-auth/identities/22222222-2222-2222-2222-222222222222/tokens",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:21.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{}",
+    "ResponseBody": "{\"message\": \"Successfully revoked access token\", \"tokenId\": \"44444444-4444-4444-4444-444444444444\"}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/identities/22222222-2222-2222-2222-222222222222/access-tokens/44444444-4444-4444-4444-444444444444/revoke",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:22.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"tokens\": [{\"id\": \"33333333-3333-3333-3333-333333333333\", \"name\": \"token-a\", \"isAccessTokenRevoked\": false}, {\"id\": \"44444444-4444-4444-4444-444444444444\", \"name\": \"token-b\", \"isAccessTokenRevoked\": true}]}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v1/identities/22222222-2222-2222-2222-222222222222/access-tokens",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:23.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/identities/22222222-2222-2222-2222-222222222222",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-19T05:49:24.119Z",
+    "Scheme": "http",
+    "scenarioName": "identity-token-revoke-scope-bug"
+  }
+]
