@@ -47,6 +47,15 @@ interface TSecretV2DalArg {
   keyStore: TKeyStoreFactory;
 }
 
+// A secret matches a tag filter when it carries ANY of the requested slugs. Shared by the
+// listing and count queries so both agree on what "filtered by tag" means.
+export const applyTagSlugFilter = (qb: Knex.QueryBuilder, column: string, tagSlugs?: string[]) => {
+  const slugs = tagSlugs?.filter(Boolean);
+  if (!slugs?.length) return;
+
+  void qb.whereIn(column, slugs);
+};
+
 export const SECRET_DAL_TTL = () => applyJitter(10 * 60, 2 * 60);
 export const SECRET_DAL_VERSION_TTL = "15m";
 export const MAX_SECRET_CACHE_BYTES = 25 * 1024 * 1024;
@@ -522,9 +531,7 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
             `${TableName.SecretTag}.id`
           );
 
-        if (slugs?.length) {
-          void query.whereIn("slug", slugs);
-        }
+        applyTagSlugFilter(query, "slug", filters?.tagSlugs);
       }
 
       if (filters?.includeMetadataInSearch) {
@@ -649,10 +656,7 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
         )
         .select(db.ref("rotationId").withSchema(TableName.SecretRotationV2SecretMapping))
         .where((bd) => {
-          const slugs = filters?.tagSlugs?.filter(Boolean);
-          if (slugs && slugs.length > 0) {
-            void bd.whereIn(`${TableName.SecretTag}.slug`, slugs);
-          }
+          applyTagSlugFilter(bd, `${TableName.SecretTag}.slug`, filters?.tagSlugs);
         })
         .where((bd) => {
           if (filters?.excludeRotatedSecrets) {

@@ -99,7 +99,9 @@ import {
   TGetSecretReferencesTreeDTO,
   TGetSecretsDTO,
   TGetSecretsRawByFolderMappingsDTO,
+  TGetSecretTagsDTO,
   TGetSecretVersionsDTO,
+  TModifySecretTagsDTO,
   TMoveSecretsDTO,
   TSecretReference,
   TUpdateManySecretDTO,
@@ -3989,10 +3991,147 @@ export const secretV2BridgeServiceFactory = ({
     };
   };
 
+  // tag attach/detach operate directly on the secret <-> tag link table. Labelling a secret does not
+  // change any secret material, so it does not produce a new secret version.
+  const $resolveSecretForTagOperation = async ({
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod,
+    projectId,
+    environment,
+    secretPath,
+    secretName
+  }: TGetSecretTagsDTO) => {
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.SecretManager
+    });
+
+    const folder = await folderDAL.findBySecretPath(projectId, environment, secretPath);
+    if (!folder)
+      throw new NotFoundError({
+        message: `Folder with path '${secretPath}' in environment with slug '${environment}' not found`
+      });
+
+    const secret = await secretDAL.findOneWithTags({
+      folderId: folder.id,
+      type: SecretType.Shared,
+      [`${TableName.SecretV2}.key` as "key"]: secretName,
+      [`${TableName.SecretV2}.userId` as "userId"]: null
+    });
+    if (!secret) throw new NotFoundError({ message: `Secret with name '${secretName}' not found` });
+
+    return { permission, secret };
+  };
+
+  const $resolveTagsBySlug = async (projectId: string, tagSlugs: string[]) => {
+    const tags = await secretTagDAL.find({ projectId, $in: { slug: tagSlugs } });
+    if (tags.length !== tagSlugs.length) throw new NotFoundError({ message: "One or more tags not found" });
+    return tags;
+  };
+
+  const getSecretTags = async (dto: TGetSecretTagsDTO) => {
+    const { permission, secret } = await $resolveSecretForTagOperation(dto);
+
+    throwIfMissingSecretReadValueOrDescribePermission(permission, ProjectPermissionSecretActions.DescribeSecret, {
+      environment: dto.environment,
+      secretPath: dto.secretPath,
+      secretName: dto.secretName,
+      secretTags: secret.tags?.map((el) => el.slug)
+    });
+
+    return {
+      secretName: dto.secretName,
+      secretId: secret.id,
+      secretVersion: secret.version,
+      tags: await secretDAL.getSecretTags(secret.id)
+    };
+  };
+
+  const attachSecretTags = async ({ tagSlugs, ...dto }: TModifySecretTagsDTO) => {
+    const { permission, secret } = await $resolveSecretForTagOperation(dto);
+
+    ForbiddenError.from(permission).throwUnlessCan(
+      ProjectPermissionSecretActions.Edit,
+      subject(ProjectPermissionSub.Secrets, {
+        environment: dto.environment,
+        secretPath: dto.secretPath,
+        secretName: dto.secretName,
+        secretTags: secret.tags?.map((el) => el.slug)
+      })
+    );
+
+    const tags = await $resolveTagsBySlug(dto.projectId, tagSlugs);
+    const existingTags = await secretDAL.getSecretTags(secret.id);
+    const alreadyAttached = new Set(existingTags.map((el) => el.id));
+    // attach is idempotent: a tag that is already on the secret is skipped rather than linked twice
+    const tagsToAttach = tags.filter((el) => !alreadyAttached.has(el.id));
+
+    if (tagsToAttach.length) {
+      await secretTagDAL.saveTagsToSecretV2(
+        tagsToAttach.map((tag) => ({
+          [`${TableName.SecretTag}Id` as const]: tag.id,
+          [`${TableName.SecretV2}Id` as const]: secret.id
+        }))
+      );
+      await secretDAL.invalidateSecretCacheByProjectId(dto.projectId);
+    }
+
+    return {
+      secretName: dto.secretName,
+      secretId: secret.id,
+      secretVersion: secret.version,
+      tags: await secretDAL.getSecretTags(secret.id)
+    };
+  };
+
+  const detachSecretTags = async ({ tagSlugs, ...dto }: TModifySecretTagsDTO) => {
+    const { permission, secret } = await $resolveSecretForTagOperation(dto);
+
+    ForbiddenError.from(permission).throwUnlessCan(
+      ProjectPermissionSecretActions.Edit,
+      subject(ProjectPermissionSub.Secrets, {
+        environment: dto.environment,
+        secretPath: dto.secretPath,
+        secretName: dto.secretName,
+        secretTags: secret.tags?.map((el) => el.slug)
+      })
+    );
+
+    const tags = await $resolveTagsBySlug(dto.projectId, tagSlugs);
+    const existingTags = await secretDAL.getSecretTags(secret.id);
+    const attached = new Set(existingTags.map((el) => el.id));
+    // detach is idempotent: a tag that is not on the secret is skipped rather than treated as an error
+    const tagIdsToDetach = tags.filter((el) => attached.has(el.id)).map((el) => el.id);
+
+    if (tagIdsToDetach.length) {
+      await secretTagDAL.deleteTagsToSecretV2({
+        [`${TableName.SecretV2}Id` as const]: secret.id,
+        $in: { [`${TableName.SecretTag}Id` as const]: tagIdsToDetach }
+      });
+      await secretDAL.invalidateSecretCacheByProjectId(dto.projectId);
+    }
+
+    return {
+      secretName: dto.secretName,
+      secretId: secret.id,
+      secretVersion: secret.version,
+      tags: await secretDAL.getSecretTags(secret.id)
+    };
+  };
+
   return {
     createSecret,
     deleteSecret,
     updateSecret,
+    getSecretTags,
+    attachSecretTags,
+    detachSecretTags,
     createManySecret,
     updateManySecret,
     deleteManySecret,
