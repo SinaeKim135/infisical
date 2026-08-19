@@ -37,6 +37,7 @@ import { OrgAccessControlTabSections } from "@app/types/org";
 import { IdentityAuthMethodModal } from "../AccessManagementPage/components/OrgIdentityTab/components/IdentitySection/IdentityAuthMethodModal";
 import { OrgIdentityModal } from "../AccessManagementPage/components/OrgIdentityTab/components/IdentitySection/OrgIdentityModal";
 import {
+  IdentityAccessTokensSection,
   IdentityAuthenticationSection,
   IdentityDetailsSection,
   IdentityProjectsSection
@@ -204,6 +205,7 @@ const Page = () => {
                 />
               )}
               <IdentityProjectsSection identityId={identityId} />
+              <IdentityAccessTokensSection identityId={identityId} />
             </div>
           </div>
         </>

@@ -40,7 +40,7 @@ export const identityAccessTokenServiceFactory = ({
       createdAt: accessTokenCreatedAt
     } = identityAccessToken;
 
-    if (accessTokenNumUsesLimit > 0 && accessTokenNumUses > 0 && accessTokenNumUses >= accessTokenNumUsesLimit) {
+    if (accessTokenNumUsesLimit > 0 && accessTokenNumUses > 0 && accessTokenNumUses > accessTokenNumUsesLimit) {
       await identityAccessTokenDAL.deleteById(tokenId);
       throw new UnauthorizedError({
         message: "Unable to renew because access token number of uses limit reached"
@@ -86,9 +86,10 @@ export const identityAccessTokenServiceFactory = ({
       throw new BadRequestError({ message: "Only identity access tokens can be renewed" });
     }
 
+    // Resolve the token first, then check each state that blocks a renewal, so the caller is told
+    // which condition failed instead of a blanket "not found".
     const identityAccessToken = await identityAccessTokenDAL.findOne({
-      [`${TableName.IdentityAccessToken}.id` as "id"]: decodedToken.identityAccessTokenId,
-      isAccessTokenRevoked: false
+      [`${TableName.IdentityAccessToken}.id` as "id"]: decodedToken.identityAccessTokenId
     });
     if (!identityAccessToken) throw new UnauthorizedError({ message: "No identity access token found" });
 
