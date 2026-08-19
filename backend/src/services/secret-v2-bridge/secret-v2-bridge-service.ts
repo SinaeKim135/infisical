@@ -2989,11 +2989,15 @@ export const secretV2BridgeServiceFactory = ({
         )
         .map((el) => ({ ...el, operation: SecretOperations.Update }));
 
-      if (locallyUpdatedSecrets.length > 0 && !shouldOverwrite) {
+      const conflictingKeys = locallyCreatedSecrets
+        .map((s) => s.key)
+        .filter((key) => destinationSecretsGroupedByKey[key]?.[0]);
+
+      if (conflictingKeys.length > 0 && !shouldOverwrite) {
         throw new BadRequestError({
-          message: `Failed to copy secrets. The following secrets already exist in the destination: ${locallyUpdatedSecrets
-            .map((s) => s.key)
-            .join(",")}`
+          message: `Failed to copy secrets. The following secrets already exist in the destination: ${conflictingKeys.join(
+            ","
+          )}`
         });
       }
 
