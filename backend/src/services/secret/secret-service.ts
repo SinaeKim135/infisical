@@ -43,7 +43,9 @@ import { OrgServiceActor } from "@app/lib/types";
 import {
   SecretUpdateMode,
   TGetSecretReferencesDTO,
-  TGetSecretsRawByFolderMappingsDTO
+  TGetSecretsRawByFolderMappingsDTO,
+  TGetSecretTagsDTO,
+  TModifySecretTagsDTO
 } from "@app/services/secret-v2-bridge/secret-v2-bridge-types";
 
 import { ActorAuthMethod, ActorType } from "../auth/auth-type";
@@ -3605,9 +3607,37 @@ export const secretServiceFactory = ({
     return secretV2BridgeService.redactSecretVersionValue({ versionId, ...rest });
   };
 
+  // v4 tag endpoints. Tag links live on the v2 bridge tables, so legacy projects are not supported.
+  const $assertBridgeProject = async (projectId: string, operation: string) => {
+    const project = await requestMemoize(requestMemoKeys.projectFindById(projectId), () =>
+      projectDAL.findById(projectId)
+    );
+    if (!project) throw new NotFoundError({ message: `Project with ID '${projectId}' not found` });
+    if (project.version !== ProjectVersion.V3)
+      throw new BadRequestError({ message: `${operation} is not supported on this project version` });
+  };
+
+  const getSecretTags = async (dto: TGetSecretTagsDTO) => {
+    await $assertBridgeProject(dto.projectId, "Reading secret tags");
+    return secretV2BridgeService.getSecretTags(dto);
+  };
+
+  const attachSecretTags = async (dto: TModifySecretTagsDTO) => {
+    await $assertBridgeProject(dto.projectId, "Attaching secret tags");
+    return secretV2BridgeService.attachSecretTags(dto);
+  };
+
+  const detachSecretTags = async (dto: TModifySecretTagsDTO) => {
+    await $assertBridgeProject(dto.projectId, "Detaching secret tags");
+    return secretV2BridgeService.detachSecretTags(dto);
+  };
+
   return {
     attachTags,
     detachTags,
+    getSecretTags,
+    attachSecretTags,
+    detachSecretTags,
     createSecret,
     deleteSecret,
     updateSecret,
