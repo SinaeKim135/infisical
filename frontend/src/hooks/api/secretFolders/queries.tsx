@@ -20,7 +20,8 @@ import {
   TProjectEnvironmentsFolders,
   TSecretFolder,
   TUpdateFolderBatchDTO,
-  TUpdateFolderDTO
+  TUpdateFolderDTO,
+  TUpdateFolderRes
 } from "./types";
 
 export const folderQueryKeys = {
@@ -233,9 +234,9 @@ export const useCreateFolder = () => {
 export const useUpdateFolder = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<object, object, TUpdateFolderDTO>({
+  return useMutation<TUpdateFolderRes, object, TUpdateFolderDTO>({
     mutationFn: async ({ path = "/", folderId, name, environment, projectId, description }) => {
-      const { data } = await apiRequest.patch(`/api/v2/folders/${folderId}`, {
+      const { data } = await apiRequest.patch<TUpdateFolderRes>(`/api/v2/folders/${folderId}`, {
         name,
         environment,
         projectId,

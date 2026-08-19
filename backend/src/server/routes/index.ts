@@ -1648,6 +1648,8 @@ export const registerRoutes = async (
     secretVersionV2BridgeDAL
   });
   const folderService = secretFolderServiceFactory({
+    secretImportDAL,
+    kmsService,
     permissionService,
     folderDAL,
     folderVersionDAL,
