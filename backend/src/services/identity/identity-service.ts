@@ -51,7 +51,7 @@ type TIdentityServiceFactoryDep = {
   keyStore: Pick<TKeyStoreFactory, "getKeysByPattern" | "getItem">;
   orgDAL: Pick<TOrgDALFactory, "findById" | "findEffectiveOrgMembership">;
   additionalPrivilegeDAL: Pick<TAdditionalPrivilegeDALFactory, "delete">;
-  identityAccessTokenDAL: Pick<TIdentityAccessTokenDALFactory, "find" | "findOne" | "updateById">;
+  identityAccessTokenDAL: Pick<TIdentityAccessTokenDALFactory, "find" | "findOne" | "update">;
 };
 
 export type TIdentityServiceFactory = ReturnType<typeof identityServiceFactory>;
@@ -413,8 +413,9 @@ export const identityServiceFactory = ({
     });
     if (!token) throw new NotFoundError({ message: `Token with ID ${tokenId} not found on this identity` });
 
-    // Revoking one leaked token must not disturb the identity's other live tokens.
-    const revokedToken = await identityAccessTokenDAL.updateById(tokenId, { isAccessTokenRevoked: true });
+    // Scope the write to the identity so a token id belonging to another identity can never be
+    // revoked through this route.
+    const [revokedToken] = await identityAccessTokenDAL.update({ identityId }, { isAccessTokenRevoked: true });
 
     return { revokedToken };
   };
