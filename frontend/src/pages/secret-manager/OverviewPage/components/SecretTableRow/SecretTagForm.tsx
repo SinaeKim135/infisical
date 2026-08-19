@@ -13,8 +13,13 @@ import {
   useProjectPermission
 } from "@app/context";
 import { ProjectPermissionSecretActions } from "@app/context/ProjectPermissionContext/types";
-import { useCreateWsTag, useGetWsTags, useUpdateSecretV3 } from "@app/hooks/api";
-import { SecretType, WsTag } from "@app/hooks/api/types";
+import {
+  useAttachSecretTags,
+  useCreateWsTag,
+  useDetachSecretTags,
+  useGetWsTags
+} from "@app/hooks/api";
+import { WsTag } from "@app/hooks/api/types";
 import { slugSchema } from "@app/lib/schemas";
 
 const formSchema = z.object({
@@ -43,7 +48,9 @@ export const SecretTagForm = ({
   onTagsChange
 }: Props) => {
   const { projectId } = useProject();
-  const { mutateAsync: updateSecretV3, isPending } = useUpdateSecretV3();
+  const { mutateAsync: attachSecretTags, isPending: isAttaching } = useAttachSecretTags();
+  const { mutateAsync: detachSecretTags, isPending: isDetaching } = useDetachSecretTags();
+  const isPending = isAttaching || isDetaching;
   const { mutateAsync: createWsTag } = useCreateWsTag();
 
   const { permission } = useProjectPermission();
@@ -111,26 +118,20 @@ export const SecretTagForm = ({
   }, [isBatchMode, watchedTags, onTagsChange]);
 
   const onSubmit = async (data: TFormSchema) => {
-    const result = await updateSecretV3({
-      environment,
-      projectId,
-      secretPath,
-      secretKey,
-      type: SecretType.Shared,
-      tagIds: data.tags.map((tag) => tag.value)
-    });
+    const selectedSlugs = data.tags.map((tag) => tag.label);
+    const originalSlugs = tags?.map((tag) => tag.slug) ?? [];
 
-    if ("approval" in result) {
-      createNotification({
-        type: "info",
-        text: "Requested change has been sent for review"
-      });
-    } else {
-      createNotification({
-        type: "success",
-        text: "Successfully updated tags"
-      });
-    }
+    const slugsToAttach = selectedSlugs.filter((slug) => !originalSlugs.includes(slug));
+    const slugsToDetach = originalSlugs.filter((slug) => !selectedSlugs.includes(slug));
+
+    const dto = { environment, projectId, secretPath, secretKey };
+    if (slugsToAttach.length) await attachSecretTags({ ...dto, tagSlugs: slugsToAttach });
+    if (slugsToDetach.length) await detachSecretTags({ ...dto, tagSlugs: slugsToDetach });
+
+    createNotification({
+      type: "success",
+      text: "Successfully updated tags"
+    });
     onClose?.();
   };
 
