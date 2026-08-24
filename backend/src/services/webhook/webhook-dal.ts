@@ -68,9 +68,6 @@ export const webhookDALFactory = (db: TDbClient) => {
       const webhooks = await (tx || db.replicaNode())(TableName.Webhook)
         .where(`${TableName.Environment}.projectId`, projectId)
         .where((qb) => {
-          if (environment) {
-            void qb.where("slug", environment);
-          }
           if (secretPath) {
             void qb.where("secretPath", secretPath);
           }
