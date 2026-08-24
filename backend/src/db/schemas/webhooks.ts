@@ -31,7 +31,7 @@ export const WebhooksSchema = z.object({
   encryptedPassKey: zodBuffer.nullable().optional(),
   encryptedUrl: zodBuffer,
   filteredEvents: z.string().array().nullable().optional(),
-  consecutiveFailures: z.number().default(0),
+  consecutiveFailures: z.number().nullable().optional(),
   autoDisabledAt: z.date().nullable().optional()
 });
 
