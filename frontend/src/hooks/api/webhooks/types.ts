@@ -16,6 +16,9 @@ export type TWebhookEventMetadata = {
 
 export const WEBHOOK_EVENTS = Object.values(WebhookEvent) as WebhookEvent[];
 
+// mirrors WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD on the API
+export const WEBHOOK_FAILURE_THRESHOLD = 5;
+
 export const WEBHOOK_EVENT_METADATA: Record<WebhookEvent, TWebhookEventMetadata> = {
   [WebhookEvent.SecretRotationFailed]: {
     label: "Secret Rotation Failed",
@@ -42,9 +45,33 @@ export type TWebhook = {
   lastStatus: "success" | "failed";
   lastRunErrorMessage?: string;
   isDisabled: boolean;
+  consecutiveFailures: number;
+  autoDisabledAt?: string | null;
   eventsFilter: { eventName: WebhookEvent }[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type TWebhookDelivery = {
+  id: string;
+  webhookId: string;
+  status: "success" | "failed";
+  statusCode?: number | null;
+  eventType: string;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TGetWebhookDeliveriesDto = {
+  webhookId: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type TReactivateWebhookDto = {
+  webhookId: string;
+  projectId: string;
 };
 
 export type TCreateWebhookDto = {
