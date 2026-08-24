@@ -403,14 +403,14 @@ export const fnTriggerWebhook = async ({
     if (failedWebhooks.length) {
       await webhookDAL.bulkUpdate(
         failedWebhooks.map(({ id, error }) => {
-          const consecutiveFailures = (hookById.get(id)?.consecutiveFailures ?? 0) + 1;
-          const hasReachedThreshold = consecutiveFailures >= WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD;
+          const failureStreak = hookById.get(id)?.consecutiveFailures ?? 0;
+          const hasReachedThreshold = failureStreak >= WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD;
 
           return {
             id,
             lastRunErrorMessage: error,
             lastStatus: "failed",
-            consecutiveFailures,
+            consecutiveFailures: failureStreak + 1,
             ...(hasReachedThreshold ? { isDisabled: true, autoDisabledAt: new Date() } : {})
           };
         }),
