@@ -60,7 +60,7 @@ export const SUBSCRIBABLE_WEBHOOK_EVENTS = [WebhookEvents.SecretModified, Webhoo
 
 export type TSubscribableWebhookEvent = (typeof SUBSCRIBABLE_WEBHOOK_EVENTS)[number];
 
-type TWebhookSecretModifiedEventPayload = {
+export type TWebhookSecretModifiedEventPayload = {
   type: WebhookEvents.SecretModified;
   payload: {
     projectName?: string;
