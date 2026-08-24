@@ -303,7 +303,6 @@ export const fnTriggerWebhook = async ({
     return !isDisabled && picomatch.isMatch(secretPath, hookSecretPath, { strictSlashes: false }) && isEventSubscribed;
   });
   if (!toBeTriggeredHooks.length) return;
-  const hookById = new Map(toBeTriggeredHooks.map((hook) => [hook.id, hook]));
   logger.info({ environment, secretPath, projectId }, "Secret webhook job started");
   let { projectName } = event.payload;
   if (!projectName) {
@@ -402,18 +401,25 @@ export const fnTriggerWebhook = async ({
     }
     if (failedWebhooks.length) {
       await webhookDAL.bulkUpdate(
-        failedWebhooks.map(({ id, error }) => {
-          const failureStreak = hookById.get(id)?.consecutiveFailures ?? 0;
-          const hasReachedThreshold = failureStreak >= WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD;
+        failedWebhooks.map(({ id, error }) => ({
+          id,
+          lastRunErrorMessage: error,
+          lastStatus: "failed"
+        })),
+        tx
+      );
 
-          return {
-            id,
-            lastRunErrorMessage: error,
-            lastStatus: "failed",
-            consecutiveFailures: failureStreak + 1,
-            ...(hasReachedThreshold ? { isDisabled: true, autoDisabledAt: new Date() } : {})
-          };
-        }),
+      // the streak belongs to the environment: its webhooks are fanned out from the same
+      // job, so one failing delivery means this environment's fan-out is degraded
+      const failureStreak = Math.max(...toBeTriggeredHooks.map((hook) => hook.consecutiveFailures ?? 0));
+      const hasReachedThreshold = failureStreak >= WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD;
+
+      await webhookDAL.update(
+        { envId: env.id },
+        {
+          consecutiveFailures: failureStreak + 1,
+          ...(hasReachedThreshold ? { isDisabled: true, autoDisabledAt: new Date() } : {})
+        },
         tx
       );
     }
