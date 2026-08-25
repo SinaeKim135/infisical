@@ -23,7 +23,9 @@ export const useUpdateOIDCConfig = () => {
       isActive,
       organizationId,
       manageGroupMemberships,
-      jwtSignatureAlgorithm
+      jwtSignatureAlgorithm,
+      groupMembershipReconciliationEnabled,
+      groupMembershipReconciliationIntervalMinutes
     }: {
       allowedEmailDomains?: string;
       issuer?: string;
@@ -39,6 +41,8 @@ export const useUpdateOIDCConfig = () => {
       organizationId: string;
       manageGroupMemberships?: boolean;
       jwtSignatureAlgorithm?: OIDCJWTSignatureAlgorithm;
+      groupMembershipReconciliationEnabled?: boolean;
+      groupMembershipReconciliationIntervalMinutes?: number;
     }) => {
       const { data } = await apiRequest.patch("/api/v1/sso/oidc/config", {
         issuer,
@@ -54,7 +58,9 @@ export const useUpdateOIDCConfig = () => {
         clientSecret,
         isActive,
         manageGroupMemberships,
-        jwtSignatureAlgorithm
+        jwtSignatureAlgorithm,
+        groupMembershipReconciliationEnabled,
+        groupMembershipReconciliationIntervalMinutes
       });
 
       return data;

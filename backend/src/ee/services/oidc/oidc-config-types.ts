@@ -23,6 +23,20 @@ export type TOidcLoginDTO = {
   callbackPort?: string;
   groups?: string[];
   manageGroupMemberships?: boolean | null;
+  // Refresh token issued by the IdP (only present when offline_access was granted).
+  // Persisted so the recurring reconciliation job can re-fetch group claims without a new login.
+  refreshToken?: string;
+  groupMembershipReconciliationEnabled?: boolean | null;
+};
+
+export type TOidcGroupReconciliationSummary = {
+  orgId: string;
+  status: "success" | "partial" | "failed" | "skipped";
+  message: string;
+  checked: number;
+  membershipsRemoved: number;
+  skipped: number;
+  failed: number;
 };
 
 export type TGetOidcCfgDTO =
@@ -50,6 +64,8 @@ export type TCreateOidcCfgDTO = {
   organizationId: string;
   manageGroupMemberships: boolean;
   jwtSignatureAlgorithm: OIDCJWTSignatureAlgorithm;
+  groupMembershipReconciliationEnabled?: boolean;
+  groupMembershipReconciliationIntervalMinutes?: number;
 } & TGenericPermission;
 
 export type TUpdateOidcCfgDTO = Partial<{
@@ -67,5 +83,7 @@ export type TUpdateOidcCfgDTO = Partial<{
   organizationId: string;
   manageGroupMemberships: boolean;
   jwtSignatureAlgorithm: OIDCJWTSignatureAlgorithm;
+  groupMembershipReconciliationEnabled: boolean;
+  groupMembershipReconciliationIntervalMinutes: number;
 }> &
   TGenericPermission;

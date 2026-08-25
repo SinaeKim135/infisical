@@ -13,8 +13,10 @@ import { throwOnPlanSeatLimitReached } from "@app/ee/services/license/license-fn
 import { TLicenseServiceFactory } from "@app/ee/services/license/license-service";
 import { OrgPermissionSsoActions, OrgPermissionSubjects } from "@app/ee/services/permission/org-permission";
 import { TPermissionServiceFactory } from "@app/ee/services/permission/permission-service-types";
+import { TKeyStoreFactory } from "@app/keystore/keystore";
 import { getConfig } from "@app/lib/config/env";
 import { BadRequestError, ForbiddenRequestError, NotFoundError, OidcAuthError } from "@app/lib/errors";
+import { logger } from "@app/lib/logger";
 import { requestMemoKeys } from "@app/lib/request-context/memo-keys";
 import { RequestContextKey } from "@app/lib/request-context/request-context-keys";
 import { requestMemoize } from "@app/lib/request-context/request-memoizer";
@@ -53,6 +55,7 @@ import {
   OIDCConfigurationType,
   TCreateOidcCfgDTO,
   TGetOidcCfgDTO,
+  TOidcGroupReconciliationSummary,
   TOidcLoginDTO,
   TUpdateOidcCfgDTO
 } from "./oidc-config-types";
@@ -69,7 +72,7 @@ type TOidcConfigServiceFactoryDep = {
     | "find"
     | "transaction"
   >;
-  userAliasDAL: Pick<TUserAliasDALFactory, "create" | "findOne">;
+  userAliasDAL: Pick<TUserAliasDALFactory, "create" | "findOne" | "updateById" | "find">;
   orgDAL: Pick<
     TOrgDALFactory,
     "createMembership" | "updateMembershipById" | "findMembership" | "findOrgById" | "findOne" | "updateById"
@@ -98,6 +101,7 @@ type TOidcConfigServiceFactoryDep = {
   kmsService: Pick<TKmsServiceFactory, "createCipherPairWithDataKey">;
   loginService: Pick<TAuthLoginFactory, "processProviderCallback">;
   emailDomainDAL: Pick<TEmailDomainDALFactory, "findOne">;
+  keyStore: Pick<TKeyStoreFactory, "deleteItems">;
 };
 
 export type TOidcConfigServiceFactory = ReturnType<typeof oidcConfigServiceFactory>;
@@ -121,7 +125,8 @@ export const oidcConfigServiceFactory = ({
   auditLogService,
   kmsService,
   loginService,
-  emailDomainDAL
+  emailDomainDAL,
+  keyStore
 }: TOidcConfigServiceFactoryDep) => {
   const getOidc = async (dto: TGetOidcCfgDTO) => {
     const oidcCfg = await oidcConfigDAL.findOne({
@@ -175,8 +180,126 @@ export const oidcConfigServiceFactory = ({
       clientId,
       clientSecret,
       manageGroupMemberships: oidcCfg.manageGroupMemberships,
-      jwtSignatureAlgorithm: oidcCfg.jwtSignatureAlgorithm
+      jwtSignatureAlgorithm: oidcCfg.jwtSignatureAlgorithm,
+      groupMembershipReconciliationEnabled: oidcCfg.groupMembershipReconciliationEnabled,
+      groupMembershipReconciliationIntervalMinutes: oidcCfg.groupMembershipReconciliationIntervalMinutes,
+      lastGroupReconciliationAt: oidcCfg.lastGroupReconciliationAt,
+      lastGroupReconciliationStatus: oidcCfg.lastGroupReconciliationStatus,
+      lastGroupReconciliationMessage: oidcCfg.lastGroupReconciliationMessage
     };
+  };
+
+  // Reconciles a user's Infisical group memberships against the set of group
+  // names presented by the IdP: adds the user to mapped groups they're missing
+  // and removes them from mapped groups no longer present in the claim. Shared by
+  // interactive OIDC login and the recurring reconciliation job so both enforce
+  // group-to-role mappings identically.
+  const syncUserGroupMemberships = async ({
+    userId,
+    orgId,
+    groups
+  }: {
+    userId: string;
+    orgId: string;
+    groups: string[];
+  }) => {
+    const user = await userDAL.findById(userId);
+    if (!user) {
+      throw new NotFoundError({ message: `Failed to find user with ID '${userId}'` });
+    }
+
+    const userGroups = await userGroupMembershipDAL.findGroupMembershipsByUserIdInOrg(userId, orgId);
+    const orgGroups = await groupDAL.findByOrgId(orgId);
+
+    const userGroupsNames = userGroups.map((membership) => membership.groupName);
+    const missingGroupsMemberships = groups.filter((groupName) => !userGroupsNames.includes(groupName));
+    const groupsToAddUserTo = orgGroups.filter((group) => missingGroupsMemberships.includes(group.name));
+
+    for await (const group of groupsToAddUserTo) {
+      await addUsersToGroupByUserIds({
+        userIds: [userId],
+        group,
+        userDAL,
+        userGroupMembershipDAL,
+        orgDAL,
+        membershipGroupDAL,
+        projectKeyDAL,
+        projectDAL,
+        projectBotDAL
+      });
+    }
+
+    if (groupsToAddUserTo.length) {
+      await auditLogService.createAuditLog({
+        actor: {
+          type: ActorType.PLATFORM,
+          metadata: {}
+        },
+        orgId,
+        event: {
+          type: EventType.OIDC_GROUP_MEMBERSHIP_MAPPING_ASSIGN_USER,
+          metadata: {
+            userId,
+            userEmail: user.email ?? user.username,
+            assignedToGroups: groupsToAddUserTo.map(({ id, name }) => ({ id, name })),
+            userGroupsClaim: groups
+          }
+        }
+      });
+    }
+
+    const membershipsToRemove = userGroups
+      .filter((membership) => !groups.includes(membership.groupName))
+      .map((membership) => membership.groupId);
+    const groupsToRemoveUserFrom = orgGroups.filter((group) => membershipsToRemove.includes(group.id));
+
+    for await (const group of groupsToRemoveUserFrom) {
+      await removeUsersFromGroupByUserIds({
+        userIds: [userId],
+        group,
+        userDAL,
+        userGroupMembershipDAL,
+        membershipGroupDAL,
+        projectKeyDAL
+      });
+    }
+
+    if (groupsToRemoveUserFrom.length) {
+      await auditLogService.createAuditLog({
+        actor: {
+          type: ActorType.PLATFORM,
+          metadata: {}
+        },
+        orgId,
+        event: {
+          type: EventType.OIDC_GROUP_MEMBERSHIP_MAPPING_REMOVE_USER,
+          metadata: {
+            userId,
+            userEmail: user.email ?? user.username,
+            removedFromGroups: groupsToRemoveUserFrom.map(({ id, name }) => ({ id, name })),
+            userGroupsClaim: groups
+          }
+        }
+      });
+    }
+
+    return {
+      addedGroups: groupsToAddUserTo.map((group) => group.name),
+      removedGroups: groupsToRemoveUserFrom.map((group) => group.name)
+    };
+  };
+
+  // Drops the cached project-permission entries (marker + data tiers) for a user
+  // so that group/role revocations take effect immediately rather than waiting
+  // for the fingerprint marker to expire. Key formats mirror KeyStorePrefixes
+  // (project-permission-marker / project-permission-data) in keystore.ts.
+  const invalidateUserProjectPermissionCache = async (userId: string) => {
+    try {
+      await keyStore.deleteItems({ pattern: `project-permission-marker:*:${ActorType.USER}:${userId}:*` });
+      await keyStore.deleteItems({ pattern: `project-permission-data:*:${ActorType.USER}:${userId}:*` });
+    } catch (error) {
+      logger.error(error, `Failed to invalidate permission cache during OIDC reconciliation [userId=${userId}]`);
+    }
   };
 
   const oidcLogin = async ({
@@ -189,7 +312,9 @@ export const oidcConfigServiceFactory = ({
     userAgent,
     callbackPort,
     groups = [],
-    manageGroupMemberships
+    manageGroupMemberships,
+    refreshToken,
+    groupMembershipReconciliationEnabled
   }: TOidcLoginDTO) => {
     const serverCfg = await getServerCfg();
 
@@ -331,79 +456,23 @@ export const oidcConfigServiceFactory = ({
     }
 
     if (manageGroupMemberships) {
-      const userGroups = await userGroupMembershipDAL.findGroupMembershipsByUserIdInOrg(user.id, orgId);
-      const orgGroups = await groupDAL.findByOrgId(orgId);
+      await syncUserGroupMemberships({ userId: user.id, orgId, groups });
 
-      const userGroupsNames = userGroups.map((membership) => membership.groupName);
-      const missingGroupsMemberships = groups.filter((groupName) => !userGroupsNames.includes(groupName));
-      const groupsToAddUserTo = orgGroups.filter((group) => missingGroupsMemberships.includes(group.name));
-
-      for await (const group of groupsToAddUserTo) {
-        await addUsersToGroupByUserIds({
-          userIds: [user.id],
-          group,
-          userDAL,
-          userGroupMembershipDAL,
-          orgDAL,
-          membershipGroupDAL,
-          projectKeyDAL,
-          projectDAL,
-          projectBotDAL
-        });
-      }
-
-      if (groupsToAddUserTo.length) {
-        await auditLogService.createAuditLog({
-          actor: {
-            type: ActorType.PLATFORM,
-            metadata: {}
-          },
-          orgId,
-          event: {
-            type: EventType.OIDC_GROUP_MEMBERSHIP_MAPPING_ASSIGN_USER,
-            metadata: {
-              userId: user.id,
-              userEmail: user.email ?? user.username,
-              assignedToGroups: groupsToAddUserTo.map(({ id, name }) => ({ id, name })),
-              userGroupsClaim: groups
-            }
-          }
-        });
-      }
-
-      const membershipsToRemove = userGroups
-        .filter((membership) => !groups.includes(membership.groupName))
-        .map((membership) => membership.groupId);
-      const groupsToRemoveUserFrom = orgGroups.filter((group) => membershipsToRemove.includes(group.id));
-
-      for await (const group of groupsToRemoveUserFrom) {
-        await removeUsersFromGroupByUserIds({
-          userIds: [user.id],
-          group,
-          userDAL,
-          userGroupMembershipDAL,
-          membershipGroupDAL,
-          projectKeyDAL
-        });
-      }
-
-      if (groupsToRemoveUserFrom.length) {
-        await auditLogService.createAuditLog({
-          actor: {
-            type: ActorType.PLATFORM,
-            metadata: {}
-          },
-          orgId,
-          event: {
-            type: EventType.OIDC_GROUP_MEMBERSHIP_MAPPING_REMOVE_USER,
-            metadata: {
-              userId: user.id,
-              userEmail: user.email ?? user.username,
-              removedFromGroups: groupsToRemoveUserFrom.map(({ id, name }) => ({ id, name })),
-              userGroupsClaim: groups
-            }
-          }
-        });
+      // Persist the IdP refresh token (granted via offline_access) so the recurring
+      // reconciliation job can re-fetch this user's current group claims without a
+      // new login. Only stored when reconciliation is enabled for the org.
+      if (groupMembershipReconciliationEnabled && refreshToken) {
+        try {
+          const { encryptor } = await kmsService.createCipherPairWithDataKey({
+            type: KmsDataKey.Organization,
+            orgId
+          });
+          await userAliasDAL.updateById(userAlias.id, {
+            encryptedRefreshToken: encryptor({ plainText: Buffer.from(refreshToken) }).cipherTextBlob
+          });
+        } catch (error) {
+          logger.error(error, `Failed to persist OIDC refresh token [userId=${user.id}] [orgId=${orgId}]`);
+        }
       }
     }
 
@@ -466,7 +535,9 @@ export const oidcConfigServiceFactory = ({
     clientId,
     clientSecret,
     manageGroupMemberships,
-    jwtSignatureAlgorithm
+    jwtSignatureAlgorithm,
+    groupMembershipReconciliationEnabled,
+    groupMembershipReconciliationIntervalMinutes
   }: TUpdateOidcCfgDTO) => {
     const org = await orgDAL.findOne({ id: organizationId });
 
@@ -540,7 +611,9 @@ export const oidcConfigServiceFactory = ({
       isActive,
       lastUsed: null,
       manageGroupMemberships,
-      jwtSignatureAlgorithm
+      jwtSignatureAlgorithm,
+      groupMembershipReconciliationEnabled,
+      groupMembershipReconciliationIntervalMinutes
     };
 
     if (clientId !== undefined) {
@@ -574,7 +647,9 @@ export const oidcConfigServiceFactory = ({
     clientId,
     clientSecret,
     manageGroupMemberships,
-    jwtSignatureAlgorithm
+    jwtSignatureAlgorithm,
+    groupMembershipReconciliationEnabled,
+    groupMembershipReconciliationIntervalMinutes
   }: TCreateOidcCfgDTO) => {
     const org = await orgDAL.findOne({ id: organizationId });
     if (!org) {
@@ -638,11 +713,60 @@ export const oidcConfigServiceFactory = ({
       orgId: org.id,
       manageGroupMemberships,
       jwtSignatureAlgorithm,
+      groupMembershipReconciliationEnabled,
+      groupMembershipReconciliationIntervalMinutes,
       encryptedOidcClientId: encryptor({ plainText: Buffer.from(clientId) }).cipherTextBlob,
       encryptedOidcClientSecret: encryptor({ plainText: Buffer.from(clientSecret) }).cipherTextBlob
     });
 
     return oidcCfg;
+  };
+
+  // Builds an openid-client Client from a decrypted OIDC config. Shared by the
+  // interactive login strategy and the recurring reconciliation job (which has no
+  // request context and resolves the org directly by id).
+  const buildOidcClient = async (oidcCfg: Awaited<ReturnType<typeof getOidc>>) => {
+    const appCfg = getConfig();
+
+    let issuer: Issuer;
+    if (oidcCfg.configurationType === OIDCConfigurationType.DISCOVERY_URL) {
+      if (!oidcCfg.discoveryURL) {
+        throw new BadRequestError({
+          message: "OIDC not configured correctly"
+        });
+      }
+      await blockLocalAndPrivateIpAddresses(oidcCfg.discoveryURL);
+      issuer = await Issuer.discover(oidcCfg.discoveryURL);
+    } else {
+      if (
+        !oidcCfg.issuer ||
+        !oidcCfg.authorizationEndpoint ||
+        !oidcCfg.jwksUri ||
+        !oidcCfg.tokenEndpoint ||
+        !oidcCfg.userinfoEndpoint
+      ) {
+        throw new BadRequestError({
+          message: "OIDC not configured correctly"
+        });
+      }
+      await blockLocalAndPrivateIpAddresses(oidcCfg.jwksUri);
+      await blockLocalAndPrivateIpAddresses(oidcCfg.tokenEndpoint);
+      await blockLocalAndPrivateIpAddresses(oidcCfg.userinfoEndpoint);
+      issuer = new OpenIdIssuer({
+        issuer: oidcCfg.issuer,
+        authorization_endpoint: oidcCfg.authorizationEndpoint,
+        jwks_uri: oidcCfg.jwksUri,
+        token_endpoint: oidcCfg.tokenEndpoint,
+        userinfo_endpoint: oidcCfg.userinfoEndpoint
+      });
+    }
+
+    return new issuer.Client({
+      client_id: oidcCfg.clientId,
+      client_secret: oidcCfg.clientSecret,
+      redirect_uris: [`${appCfg.SITE_URL}/api/v1/sso/oidc/callback`],
+      id_token_signed_response_alg: oidcCfg.jwtSignatureAlgorithm
+    });
   };
 
   const getOrgAuthStrategy = async (
@@ -680,45 +804,14 @@ export const oidcConfigServiceFactory = ({
     }
     const org = await orgDAL.findOne({ id: resolvedOrgId });
 
-    let issuer: Issuer;
-    if (oidcCfg.configurationType === OIDCConfigurationType.DISCOVERY_URL) {
-      if (!oidcCfg.discoveryURL) {
-        throw new BadRequestError({
-          message: "OIDC not configured correctly"
-        });
-      }
-      await blockLocalAndPrivateIpAddresses(oidcCfg.discoveryURL);
-      issuer = await Issuer.discover(oidcCfg.discoveryURL);
-    } else {
-      if (
-        !oidcCfg.issuer ||
-        !oidcCfg.authorizationEndpoint ||
-        !oidcCfg.jwksUri ||
-        !oidcCfg.tokenEndpoint ||
-        !oidcCfg.userinfoEndpoint
-      ) {
-        throw new BadRequestError({
-          message: "OIDC not configured correctly"
-        });
-      }
-      await blockLocalAndPrivateIpAddresses(oidcCfg.jwksUri);
-      await blockLocalAndPrivateIpAddresses(oidcCfg.tokenEndpoint);
-      await blockLocalAndPrivateIpAddresses(oidcCfg.userinfoEndpoint);
-      issuer = new OpenIdIssuer({
-        issuer: oidcCfg.issuer,
-        authorization_endpoint: oidcCfg.authorizationEndpoint,
-        jwks_uri: oidcCfg.jwksUri,
-        token_endpoint: oidcCfg.tokenEndpoint,
-        userinfo_endpoint: oidcCfg.userinfoEndpoint
-      });
-    }
+    const client = await buildOidcClient(oidcCfg);
 
-    const client = new issuer.Client({
-      client_id: oidcCfg.clientId,
-      client_secret: oidcCfg.clientSecret,
-      redirect_uris: [`${appCfg.SITE_URL}/api/v1/sso/oidc/callback`],
-      id_token_signed_response_alg: oidcCfg.jwtSignatureAlgorithm
-    });
+    // Request offline_access so the IdP issues a refresh token when near-real-time
+    // group reconciliation is enabled — the recurring job uses it to re-fetch group
+    // claims without a new login. Skipped otherwise to avoid unnecessary consent.
+    const scope = oidcCfg.groupMembershipReconciliationEnabled
+      ? "openid profile email offline_access"
+      : "openid profile email";
 
     // Check if the OIDC provider supports PKCE
     const codeChallengeMethods = client.issuer.metadata.code_challenge_methods_supported;
@@ -729,7 +822,7 @@ export const oidcConfigServiceFactory = ({
         client,
         passReqToCallback: true,
         usePKCE: supportsPKCE,
-        params: { prompt: "login", ...(supportsPKCE ? { code_challenge_method: "S256" } : {}) }
+        params: { prompt: "login", scope, ...(supportsPKCE ? { code_challenge_method: "S256" } : {}) }
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (_req: any, tokenSet: TokenSet, cb: any) => {
@@ -765,7 +858,9 @@ export const oidcConfigServiceFactory = ({
           userAgent: requestContext.get("userAgent") || "",
           groups,
           callbackPort,
-          manageGroupMemberships: oidcCfg.manageGroupMemberships
+          manageGroupMemberships: oidcCfg.manageGroupMemberships,
+          refreshToken: tokenSet.refresh_token,
+          groupMembershipReconciliationEnabled: oidcCfg.groupMembershipReconciliationEnabled
         })
           .then((loginResult) => {
             if (appCfg.OTEL_TELEMETRY_COLLECTION_ENABLED) {
@@ -822,5 +917,146 @@ export const oidcConfigServiceFactory = ({
     return Boolean(oidcConfig?.manageGroupMemberships);
   };
 
-  return { oidcLogin, getOrgAuthStrategy, getOidc, updateOidcCfg, createOidcCfg, isOidcManageGroupMembershipsEnabled };
+  const persistReconciliationStatus = async (orgId: string, summary: TOidcGroupReconciliationSummary) => {
+    try {
+      await oidcConfigDAL.update(
+        { orgId },
+        {
+          lastGroupReconciliationAt: new Date(),
+          lastGroupReconciliationStatus: summary.status,
+          lastGroupReconciliationMessage: summary.message
+        }
+      );
+    } catch (error) {
+      logger.error(error, `OIDC group reconciliation: failed to persist status [orgId=${orgId}]`);
+    }
+  };
+
+  // Re-fetches each OIDC user's current group claims from the IdP (using their
+  // stored refresh token) and reconciles Infisical group memberships accordingly,
+  // revoking access for users removed from mapped groups without requiring a new
+  // login. Invalidates the permission cache for any user whose memberships change.
+  // Invoked on a recurring schedule by the reconciliation queue.
+  const reconcileOidcGroupMembershipsForOrg = async (orgId: string): Promise<TOidcGroupReconciliationSummary> => {
+    const buildSummary = (
+      status: TOidcGroupReconciliationSummary["status"],
+      partial: Partial<Omit<TOidcGroupReconciliationSummary, "orgId" | "status">> & { message: string }
+    ): TOidcGroupReconciliationSummary => ({
+      orgId,
+      status,
+      checked: 0,
+      membershipsRemoved: 0,
+      skipped: 0,
+      failed: 0,
+      ...partial
+    });
+
+    let oidcCfg: Awaited<ReturnType<typeof getOidc>>;
+    try {
+      oidcCfg = await getOidc({ type: "internal", organizationId: orgId });
+    } catch (error) {
+      logger.error(error, `OIDC group reconciliation: failed to load config [orgId=${orgId}]`);
+      return buildSummary("failed", { message: "Failed to load OIDC configuration." });
+    }
+
+    if (!oidcCfg.isActive || !oidcCfg.manageGroupMemberships || !oidcCfg.groupMembershipReconciliationEnabled) {
+      return buildSummary("skipped", { message: "Reconciliation is not enabled for this organization." });
+    }
+
+    let client: Awaited<ReturnType<typeof buildOidcClient>>;
+    try {
+      client = await buildOidcClient(oidcCfg);
+    } catch (error) {
+      logger.error(error, `OIDC group reconciliation: failed to build client [orgId=${orgId}]`);
+      const summary = buildSummary("failed", { message: "Failed to connect to the OIDC provider." });
+      await persistReconciliationStatus(orgId, summary);
+      return summary;
+    }
+
+    const { decryptor } = await kmsService.createCipherPairWithDataKey({
+      type: KmsDataKey.Organization,
+      orgId
+    });
+
+    const aliases = await userAliasDAL.find({ orgId, aliasType: UserAliasType.OIDC });
+    const reconcilableAliases = aliases.filter((alias) => Boolean(alias.encryptedRefreshToken));
+
+    let checked = 0;
+    let membershipsRemoved = 0;
+    let failed = 0;
+    const skipped = aliases.length - reconcilableAliases.length;
+
+    for await (const alias of reconcilableAliases) {
+      try {
+        const refreshToken = decryptor({ cipherTextBlob: alias.encryptedRefreshToken as Buffer }).toString();
+
+        const tokenSet = await client.refresh(refreshToken);
+
+        // Group claims arrive in the ID token at login; on refresh we read them from
+        // the refreshed ID token and fall back to the userinfo endpoint.
+        let claims: Record<string, unknown> | undefined;
+        try {
+          claims = tokenSet.claims() as Record<string, unknown>;
+        } catch {
+          claims = undefined;
+        }
+        if ((!claims || claims.groups === undefined) && tokenSet.access_token) {
+          claims = (await client.userinfo(tokenSet.access_token)) as Record<string, unknown>;
+        }
+
+        const rawGroups = claims?.groups;
+        const groups = typeof rawGroups === "string" ? [rawGroups] : ((rawGroups as string[] | undefined) ?? []);
+
+        const { removedGroups } = await syncUserGroupMemberships({ userId: alias.userId, orgId, groups });
+        if (removedGroups.length) {
+          membershipsRemoved += removedGroups.length;
+          await invalidateUserProjectPermissionCache(alias.userId);
+        }
+
+        // Persist the rotated refresh token so the next run can authenticate.
+        if (tokenSet.refresh_token && tokenSet.refresh_token !== refreshToken) {
+          const { encryptor } = await kmsService.createCipherPairWithDataKey({
+            type: KmsDataKey.Organization,
+            orgId
+          });
+          await userAliasDAL.updateById(alias.id, {
+            encryptedRefreshToken: encryptor({ plainText: Buffer.from(tokenSet.refresh_token) }).cipherTextBlob
+          });
+        }
+
+        checked += 1;
+      } catch (error) {
+        // A refresh failure (e.g. invalid_grant) usually means the IdP revoked the
+        // token/session. We log and skip rather than auto-deprovision so transient
+        // errors don't lock users out; persistent failures surface via the status.
+        failed += 1;
+        logger.warn(
+          error,
+          `OIDC group reconciliation: failed to refresh user [orgId=${orgId}] [userId=${alias.userId}]`
+        );
+      }
+    }
+
+    const status: TOidcGroupReconciliationSummary["status"] = failed > 0 ? "partial" : "success";
+    const summary = buildSummary(status, {
+      checked,
+      membershipsRemoved,
+      skipped,
+      failed,
+      message: `Checked ${checked} user(s); removed ${membershipsRemoved} group membership(s); ${skipped} skipped (no stored refresh token); ${failed} failed.`
+    });
+
+    await persistReconciliationStatus(orgId, summary);
+    return summary;
+  };
+
+  return {
+    oidcLogin,
+    getOrgAuthStrategy,
+    getOidc,
+    updateOidcCfg,
+    createOidcCfg,
+    isOidcManageGroupMembershipsEnabled,
+    reconcileOidcGroupMembershipsForOrg
+  };
 };

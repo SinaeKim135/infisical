@@ -178,6 +178,13 @@ Queue jobs support: delays, attempts with exponential/fixed backoff, cron-patter
 
 Queue handler factories (e.g., `src/services/secret/secret-queue.ts`) follow the same DI pattern as services — they receive DALs and services as dependencies.
 
+### OIDC Group Membership Reconciliation
+
+SSO/OIDC group-to-role mappings normally only sync at login (`oidcLogin` in `src/ee/services/oidc/oidc-config-service.ts`). For near-real-time deprovisioning, a recurring job re-syncs membership without a new login:
+
+- **Storage**: when an org enables `groupMembershipReconciliationEnabled` (per-org column on `oidc_configs`, with `groupMembershipReconciliationIntervalMinutes` + `lastGroupReconciliation*` status fields), the OIDC login strategy requests `offline_access` and stores the IdP refresh token encrypted (org KMS data key) on `user_aliases.encryptedRefreshToken`.
+- **Job**: `oidcGroupReconciliationQueueServiceFactory` (`oidc-group-reconciliation-queue.ts`, queue `OidcGroupMembershipReconciliation`) ticks every minute and, for each due org, calls `oidcService.reconcileOidcGroupMembershipsForOrg`. That re-fetches each user's current group claims via `client.refresh()` + ID-token/userinfo, runs the shared `syncUserGroupMemberships` (same add/remove logic as login), and explicitly invalidates the affected user's project-permission cache keys (marker + data tiers).
+
 ### Error Handling
 
 Custom error classes in `src/lib/errors/index.ts`:
