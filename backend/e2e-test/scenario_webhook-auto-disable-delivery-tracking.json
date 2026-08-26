@@ -1,0 +1,57 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"message\": \"Successfully fetched webhook deliveries\", \"deliveries\": [], \"totalCount\": 0}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v1/webhooks/a0b1c2d3-e4f5-6789-abcd-ef0123456789/deliveries",
+    "QueryParams": {
+      "limit": [
+        "20"
+      ],
+      "offset": [
+        "0"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-26T19:12:23.669Z",
+    "Scheme": "http",
+    "scenarioName": "webhook-auto-disable-delivery-tracking"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{}",
+    "ResponseBody": "{\"message\": \"Successfully reactivated webhook\", \"webhook\": {\"id\": \"c0d1e2f3-a4b5-6789-cdef-012345678901\", \"isDisabled\": false, \"consecutiveFailures\": 0, \"autoDisabledAt\": null}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/webhooks/c0d1e2f3-a4b5-6789-cdef-012345678901/reactivate",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-26T19:12:24.669Z",
+    "Scheme": "http",
+    "scenarioName": "webhook-auto-disable-delivery-tracking"
+  }
+]
