@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ClockAlertIcon, ClockIcon, Ellipsis, Mail, MailOpen, Trash2 } from "lucide-react";
+import { ClockAlertIcon, ClockIcon, Ellipsis, Mail, MailOpen, Pencil, Trash2 } from "lucide-react";
 
 import {
   Badge,
@@ -23,14 +23,8 @@ export const ShareSecretsRow = ({
 }: {
   row: TSharedSecret;
   handlePopUpOpen: (
-    popUpName: keyof UsePopUpState<["deleteSharedSecretConfirmation"]>,
-    {
-      name,
-      id
-    }: {
-      name: string;
-      id: string;
-    }
+    popUpName: keyof UsePopUpState<["deleteSharedSecretConfirmation", "editSharedSecret"]>,
+    data: { name: string; id: string } | TSharedSecret
   ) => void;
 }) => {
   const lastViewedAt = row.lastViewedAt
@@ -87,6 +81,10 @@ export const ShareSecretsRow = ({
             </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handlePopUpOpen("editSharedSecret", row)}>
+              <Pencil />
+              Edit
+            </DropdownMenuItem>
             <DropdownMenuItem
               variant="danger"
               onClick={() =>
