@@ -76,11 +76,23 @@ jobs:
             sleep $((i * 20))
           done
 
-      - uses: skyramp/testbot@89f8cd799fdbf8ff762568873f52dacab5d3e23f # v0.10.7
+      - uses: skyramp/testbot@3d8f06f7223f2a7c187e4f3f3ed2b2e074770e8e # v0.11.10
         with:
           skyrampLicenseFile: ${{ secrets.SKYRAMP_LICENSE_FILE }}
           anthropicApiKey: ${{ secrets.SKYRAMP_TESTBOT_API_KEY }}
+          # Which model the Claude agent runs on. Raw model ids are accepted from
+          # skyramp/testbot v0.11.7 onward -- claude-sonnet-4-6, claude-sonnet-5,
+          # claude-opus-4-8, claude-opus-5. Empty is not an error: the action falls
+          # back to its `sonnet` alias, which is pinned to claude-sonnet-4-6[1m].
+          model: ''
           githubToken: ${{ steps.skyramp-testbot-app-token.outputs.token }}
+          # The token minted above is a GitHub App installation token, which dies
+          # after 1 hour. Runs on this repo take longer than that, so the push and
+          # API calls at delivery time were failing on an already-expired token.
+          # Handing the action the App credentials lets it mint a fresh token right
+          # before it needs one (skyramp/testbot >= v0.11.0).
+          githubAppId: ${{ secrets.SKYRAMP_TESTBOT_APP_ID }}
+          githubAppPrivateKey: ${{ secrets.SKYRAMP_TESTBOT_APP_PRIVATE_KEY }}
           targetSetupCommand: 'docker compose -f docker-compose.bdd.yml up -d --build'
           targetReadyCheckCommand: 'curl -sf http://localhost:8080/api/status && curl -sf http://localhost:8080 | grep -q "root"'
           # v0.10.6+ runs targetSetupCommand in the background, so the ready check
