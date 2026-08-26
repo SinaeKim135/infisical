@@ -867,8 +867,12 @@ export const secretSharingServiceFactory = ({
     }
 
     if (password !== undefined) {
+      // a replacement password is hashed with the same cost factor the create path uses
       const hashedPassword = password ? await crypto.hashing().createHash(password, appCfg.SALT_ROUNDS) : null;
-      updatePayload.password = hashedPassword;
+
+      logger.info(
+        `Rotating shared secret password [sharedSecretId=${sharedSecretId}] [hasPassword=${Boolean(hashedPassword)}]`
+      );
     }
 
     if (name !== undefined) {
