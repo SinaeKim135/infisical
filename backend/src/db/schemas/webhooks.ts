@@ -30,7 +30,9 @@ export const WebhooksSchema = z.object({
   type: z.string().default("general").nullable().optional(),
   encryptedPassKey: zodBuffer.nullable().optional(),
   encryptedUrl: zodBuffer,
-  filteredEvents: z.string().array().nullable().optional()
+  filteredEvents: z.string().array().nullable().optional(),
+  consecutiveFailures: z.number().nullable().optional(),
+  autoDisabledAt: z.date().nullable().optional()
 });
 
 export type TWebhooks = z.infer<typeof WebhooksSchema>;

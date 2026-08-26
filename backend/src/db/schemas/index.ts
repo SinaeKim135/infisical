@@ -245,5 +245,6 @@ export * from "./user-group-membership";
 export * from "./users";
 export * from "./vault-external-migration-configs";
 export * from "./webauthn-credentials";
+export * from "./webhook-delivery-logs";
 export * from "./webhooks";
 export * from "./workflow-integrations";

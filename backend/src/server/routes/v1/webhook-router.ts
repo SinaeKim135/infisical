@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { WebhooksSchema } from "@app/db/schemas";
+import { WebhookDeliveryLogsSchema, WebhooksSchema } from "@app/db/schemas";
 import { EventType } from "@app/ee/services/audit-log/audit-log-types";
 import { removeTrailingSlash } from "@app/lib/fn";
 import { readLimit, writeLimit } from "@app/server/config/rateLimiter";
@@ -20,6 +20,8 @@ export const sanitizedWebhookSchema = WebhooksSchema.pick({
   lastStatus: true,
   lastRunErrorMessage: true,
   isDisabled: true,
+  consecutiveFailures: true,
+  autoDisabledAt: true,
   createdAt: true,
   updatedAt: true,
   envId: true,
@@ -260,6 +262,92 @@ export const registerWebhookRouter = async (server: FastifyZodProvider) => {
         id: req.params.webhookId
       });
       return { message: "Successfully tested webhook", webhook };
+    }
+  });
+
+  server.route({
+    method: "GET",
+    url: "/:webhookId/deliveries",
+    config: {
+      rateLimit: readLimit
+    },
+    onRequest: verifyAuth([AuthMode.JWT]),
+    schema: {
+      operationId: "listWebhookDeliveries",
+      params: z.object({
+        webhookId: z.string().trim()
+      }),
+      querystring: z.object({
+        limit: z.coerce.number().min(1).max(100).default(20),
+        offset: z.coerce.number().min(0).default(0)
+      }),
+      response: {
+        200: z.object({
+          message: z.string(),
+          deliveries: WebhookDeliveryLogsSchema.array(),
+          totalCount: z.number()
+        })
+      }
+    },
+    handler: async (req) => {
+      const { deliveries, totalCount } = await server.services.webhook.listWebhookDeliveries({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        id: req.params.webhookId,
+        limit: req.query.limit,
+        offset: req.query.offset
+      });
+
+      return { message: "Successfully fetched webhook deliveries", deliveries, totalCount };
+    }
+  });
+
+  server.route({
+    method: "POST",
+    url: "/:webhookId/reactivate",
+    config: {
+      rateLimit: writeLimit
+    },
+    onRequest: verifyAuth([AuthMode.JWT]),
+    schema: {
+      operationId: "reactivateWebhook",
+      params: z.object({
+        webhookId: z.string().trim()
+      }),
+      response: {
+        200: z.object({
+          message: z.string(),
+          webhook: sanitizedWebhookSchema
+        })
+      }
+    },
+    handler: async (req) => {
+      const webhook = await server.services.webhook.reactivateWebhook({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        id: req.params.webhookId
+      });
+
+      await server.services.auditLog.createAuditLog({
+        ...req.auditLogInfo,
+        projectId: webhook.projectId,
+        event: {
+          type: EventType.UPDATE_WEBHOOK_STATUS,
+          metadata: {
+            environment: webhook.environment.slug,
+            webhookId: webhook.id,
+            isDisabled: webhook.isDisabled,
+            secretPath: webhook.secretPath,
+            eventsFilter: webhook.eventsFilter
+          }
+        }
+      });
+
+      return { message: "Successfully reactivated webhook", webhook };
     }
   });
 
