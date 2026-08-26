@@ -1,0 +1,120 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\": \"webhook-env-filter-qa\", \"type\": \"secret-manager\", \"shouldCreateDefaultEnvs\": true}",
+    "ResponseBody": "{\"project\": {\"id\": \"3f7a91c2-5d84-4e16-9b23-8c4de1a70f55\", \"name\": \"webhook-env-filter-qa\", \"type\": \"secret-manager\", \"environments\": [{\"id\": \"6b1d4e70-2c98-4a53-b7e1-0f9a2d4c85e6\", \"name\": \"Development\", \"slug\": \"dev\"}, {\"id\": \"9d2f7c81-4b60-4e39-a5c2-7e1b8f3a06d4\", \"name\": \"Production\", \"slug\": \"prod\"}]}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-26T19:19:49.966Z",
+    "Scheme": "http",
+    "scenarioName": "webhook-list-environment-filter-isolation",
+    "UniqueFields": [
+      "projectName"
+    ]
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"3f7a91c2-5d84-4e16-9b23-8c4de1a70f55\", \"environment\": \"dev\", \"webhookUrl\": \"https://example.com/dev-hook\", \"secretPath\": \"/\", \"type\": \"general\"}",
+    "ResponseBody": "{\"message\": \"Successfully created webhook\", \"webhook\": {\"id\": \"b21c6e94-7a35-4f80-9d12-e6f3a5c88b41\", \"secretPath\": \"/\", \"isDisabled\": false, \"consecutiveFailures\": null, \"autoDisabledAt\": null, \"environment\": {\"slug\": \"dev\"}, \"eventsFilter\": []}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/webhooks",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-26T19:19:50.966Z",
+    "Scheme": "http",
+    "scenarioName": "webhook-list-environment-filter-isolation"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"3f7a91c2-5d84-4e16-9b23-8c4de1a70f55\", \"environment\": \"prod\", \"webhookUrl\": \"https://example.com/prod-hook\", \"secretPath\": \"/\", \"type\": \"general\"}",
+    "ResponseBody": "{\"message\": \"Successfully created webhook\", \"webhook\": {\"id\": \"c84f2a17-9e63-4b25-8a70-1d5c9f2e63a8\", \"secretPath\": \"/\", \"isDisabled\": false, \"consecutiveFailures\": null, \"autoDisabledAt\": null, \"environment\": {\"slug\": \"prod\"}, \"eventsFilter\": []}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/webhooks",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-26T19:19:51.966Z",
+    "Scheme": "http",
+    "scenarioName": "webhook-list-environment-filter-isolation"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"message\": \"Successfully fetched webhook\", \"webhooks\": [{\"id\": \"b21c6e94-7a35-4f80-9d12-e6f3a5c88b41\", \"url\": \"https://example.com/dev-hook\", \"secretPath\": \"/\", \"isDisabled\": false, \"consecutiveFailures\": null, \"autoDisabledAt\": null, \"environment\": {\"slug\": \"dev\"}, \"eventsFilter\": []}]}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v1/webhooks",
+    "QueryParams": {
+      "projectId": [
+        "3f7a91c2-5d84-4e16-9b23-8c4de1a70f55"
+      ],
+      "environment": [
+        "dev"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-26T19:19:52.966Z",
+    "Scheme": "http",
+    "scenarioName": "webhook-list-environment-filter-isolation"
+  }
+]
