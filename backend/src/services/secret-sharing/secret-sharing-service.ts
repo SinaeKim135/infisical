@@ -852,14 +852,6 @@ export const secretSharingServiceFactory = ({
 
     $validateSharedSecretOwnership(sharedSecret, { actor, actorId, orgId }, "update");
 
-    // Once a link lapses its ciphertext is discarded, so there is nothing left to hand out.
-    // Editing such a link would put a dead entry back in the sender's list looking healthy.
-    if (!sharedSecret.encryptedSecret) {
-      throw new BadRequestError({
-        message: "This shared secret is no longer available and can no longer be edited"
-      });
-    }
-
     const updatePayload: TSecretSharingUpdate = {};
 
     if (expiresIn !== undefined) {
