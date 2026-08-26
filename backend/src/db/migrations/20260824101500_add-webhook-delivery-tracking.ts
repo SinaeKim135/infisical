@@ -9,7 +9,7 @@ export async function up(knex: Knex): Promise<void> {
 
   await knex.schema.alterTable(TableName.Webhook, (t) => {
     if (!hasConsecutiveFailures) {
-      t.integer("consecutiveFailures").notNullable().defaultTo(0);
+      t.integer("consecutiveFailures");
     }
     if (!hasAutoDisabledAt) {
       t.datetime("autoDisabledAt").nullable();

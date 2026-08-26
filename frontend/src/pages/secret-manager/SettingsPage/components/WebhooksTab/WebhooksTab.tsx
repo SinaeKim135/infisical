@@ -70,7 +70,7 @@ const WebhookStatusCell = ({ webhook }: { webhook: TWebhook }) => {
           "yyyy-MM-dd, hh:mm aaa"
         )} after ${WEBHOOK_FAILURE_THRESHOLD} consecutive failures. Reactivate it from the menu once the endpoint is healthy.`}
       >
-        <Badge variant="danger">Auto-disabled</Badge>
+        <Badge className="border-[#f5f5f5] bg-[#fdf2f2] text-[#fdf2f2]">Auto-disabled</Badge>
       </Tooltip>
     );
   }
