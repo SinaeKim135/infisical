@@ -1,7 +1,7 @@
 import { AxiosError } from "axios";
 import picomatch from "picomatch";
 
-import { TWebhooks } from "@app/db/schemas";
+import { TWebhookDeliveryLogsInsert, TWebhooks } from "@app/db/schemas";
 import { EventType, TAuditLogServiceFactory, WebhookTriggeredEvent } from "@app/ee/services/audit-log/audit-log-types";
 import { request } from "@app/lib/config/request";
 import { crypto } from "@app/lib/crypto/cryptography";
@@ -15,7 +15,14 @@ import { ActorType } from "@app/services/auth/auth-type";
 import { TProjectDALFactory } from "../project/project-dal";
 import { TProjectEnvDALFactory } from "../project-env/project-env-dal";
 import { TWebhookDALFactory } from "./webhook-dal";
-import { TWebhookPayloads, WebhookEvents, WebhookType } from "./webhook-types";
+import { TWebhookDeliveryLogDALFactory } from "./webhook-delivery-log-dal";
+import {
+  TWebhookPayloads,
+  TWebhookSecretModifiedEventPayload,
+  WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD,
+  WebhookEvents,
+  WebhookType
+} from "./webhook-types";
 
 const WEBHOOK_TRIGGER_TIMEOUT = 15 * 1000;
 
@@ -62,9 +69,23 @@ export const triggerWebhookRequest = async (
   return req;
 };
 
+// the fields every secret-modified payload carries, regardless of the destination's format
+const getSecretModifiedFields = (payload: TWebhookSecretModifiedEventPayload["payload"]) => {
+  const { projectName, projectId, environment, changedBy, changedByActorType } = payload;
+
+  return {
+    projectName,
+    projectId,
+    environment,
+    changedBy,
+    changedByActorType: changedByActorType?.toString() || "Unknown Actor Type"
+  };
+};
+
 export const getWebhookPayload = (event: TWebhookPayloads) => {
   if (event.type === WebhookEvents.SecretModified) {
-    const { projectName, projectId, environment, secretPath, type, changedBy, changedByActorType } = event.payload;
+    const { type } = event.payload;
+    const fields = getSecretModifiedFields(event.payload);
 
     switch (type) {
       case WebhookType.SLACK:
@@ -76,27 +97,22 @@ export const getWebhookPayload = (event: TWebhookPayloads) => {
               fields: [
                 {
                   title: "Project",
-                  value: projectName,
+                  value: fields.projectName,
                   short: false
                 },
                 {
                   title: "Environment",
-                  value: environment,
-                  short: false
-                },
-                {
-                  title: "Secret Path",
-                  value: secretPath,
+                  value: fields.environment,
                   short: false
                 },
                 {
                   title: "Modified By",
-                  value: changedBy,
+                  value: fields.changedBy,
                   short: false
                 },
                 {
                   title: "Modified By Actor Type",
-                  value: changedByActorType?.toString() || "Unknown Actor Type",
+                  value: fields.changedByActorType,
                   short: false
                 }
               ]
@@ -122,13 +138,12 @@ export const getWebhookPayload = (event: TWebhookPayloads) => {
                   {
                     type: "FactSet",
                     facts: [
-                      { title: "Project", value: projectName || "" },
-                      { title: "Environment", value: environment },
-                      { title: "Secret Path", value: secretPath || "" },
-                      { title: "Modified By", value: changedBy || "" },
+                      { title: "Project", value: fields.projectName || "" },
+                      { title: "Environment", value: fields.environment },
+                      { title: "Modified By", value: fields.changedBy || "" },
                       {
                         title: "Actor Type",
-                        value: changedByActorType?.toString() || "Unknown Actor Type"
+                        value: fields.changedByActorType
                       }
                     ]
                   }
@@ -142,13 +157,8 @@ export const getWebhookPayload = (event: TWebhookPayloads) => {
         return {
           event: event.type,
           project: {
-            workspaceId: projectId,
-            projectId,
-            projectName,
-            environment,
-            secretPath,
-            changedBy,
-            changedByActorType
+            workspaceId: fields.projectId,
+            ...fields
           }
         };
     }
@@ -274,6 +284,7 @@ export type TFnTriggerWebhookDTO = {
   environment: string;
   event: TWebhookPayloads;
   webhookDAL: Pick<TWebhookDALFactory, "findAllWebhooks" | "transaction" | "update" | "bulkUpdate">;
+  webhookDeliveryLogDAL: Pick<TWebhookDeliveryLogDALFactory, "insertMany">;
   projectEnvDAL: Pick<TProjectEnvDALFactory, "findOne">;
   projectDAL: Pick<TProjectDALFactory, "findById">;
   secretManagerDecryptor: (value: Buffer) => string;
@@ -287,6 +298,7 @@ export const fnTriggerWebhook = async ({
   secretPath,
   projectId,
   webhookDAL,
+  webhookDeliveryLogDAL,
   projectEnvDAL,
   event,
   secretManagerDecryptor,
@@ -325,7 +337,7 @@ export const fnTriggerWebhook = async ({
   // filter hooks by status
   const successWebhooks = webhooksTriggered
     .filter(({ status }) => status === "fulfilled")
-    .map((_, i) => {
+    .map((data, i) => {
       eventPayloads.push({
         webhookId: toBeTriggeredHooks[i].id,
         type: event.type,
@@ -337,7 +349,10 @@ export const fnTriggerWebhook = async ({
         status: "success"
       } as WebhookTriggeredEvent["metadata"]);
 
-      return toBeTriggeredHooks[i].id;
+      return {
+        id: toBeTriggeredHooks[i].id,
+        statusCode: data.status === "fulfilled" ? data.value?.status : undefined
+      };
     });
   const failedWebhooks = webhooksTriggered
     .filter(({ status }) => status === "rejected")
@@ -355,9 +370,27 @@ export const fnTriggerWebhook = async ({
 
       return {
         id: toBeTriggeredHooks[i].id,
-        error: data.status === "rejected" ? (data.reason as AxiosError).message : ""
+        error: data.status === "rejected" ? (data.reason as AxiosError).message : "",
+        statusCode: data.status === "rejected" ? (data.reason as AxiosError).response?.status : undefined
       };
     });
+
+  const deliveryLogs: TWebhookDeliveryLogsInsert[] = [
+    ...successWebhooks.map(({ id, statusCode }) => ({
+      webhookId: id,
+      status: "success",
+      statusCode,
+      eventType: event.type,
+      errorMessage: null
+    })),
+    ...failedWebhooks.map(({ id, error, statusCode }) => ({
+      webhookId: id,
+      status: "failed",
+      statusCode,
+      eventType: event.type,
+      errorMessage: error
+    }))
+  ];
 
   await webhookDAL.transaction(async (tx) => {
     const env = await projectEnvDAL.findOne({ projectId, slug: environment }, tx);
@@ -368,8 +401,10 @@ export const fnTriggerWebhook = async ({
     }
     if (successWebhooks.length) {
       await webhookDAL.update(
-        { envId: env.id, $in: { id: successWebhooks } },
-        { lastStatus: "success", lastRunErrorMessage: null },
+        { envId: env.id, $in: { id: successWebhooks.map(({ id }) => id) } },
+        // a delivery that lands clears the failure streak, so a webhook that recovers
+        // on its own never drifts towards the auto-disable threshold
+        { lastStatus: "success", lastRunErrorMessage: null, consecutiveFailures: 0 },
         tx
       );
     }
@@ -382,6 +417,23 @@ export const fnTriggerWebhook = async ({
         })),
         tx
       );
+
+      // the streak belongs to the environment: its webhooks are fanned out from the same
+      // job, so one failing delivery means this environment's fan-out is degraded
+      const failureStreak = Math.max(...toBeTriggeredHooks.map((hook) => hook.consecutiveFailures ?? 0));
+      const hasReachedThreshold = failureStreak >= WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD;
+
+      await webhookDAL.update(
+        { envId: env.id },
+        {
+          consecutiveFailures: failureStreak + 1,
+          ...(hasReachedThreshold ? { isDisabled: true, autoDisabledAt: new Date() } : {})
+        },
+        tx
+      );
+    }
+    if (deliveryLogs.length) {
+      await webhookDeliveryLogDAL.insertMany(deliveryLogs, tx);
     }
   });
 
