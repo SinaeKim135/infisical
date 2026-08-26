@@ -91,6 +91,7 @@ export enum TableName {
   IntegrationAuth = "integration_auths",
   ServiceToken = "service_tokens",
   Webhook = "webhooks",
+  WebhookDeliveryLog = "webhook_delivery_logs",
   Identity = "identities",
   IdentityAccessToken = "identity_access_tokens",
   IdentityTokenAuth = "identity_token_auths",

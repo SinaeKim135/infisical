@@ -638,6 +638,9 @@ import {
   TWebauthnCredentials,
   TWebauthnCredentialsInsert,
   TWebauthnCredentialsUpdate,
+  TWebhookDeliveryLogs,
+  TWebhookDeliveryLogsInsert,
+  TWebhookDeliveryLogsUpdate,
   TWebhooks,
   TWebhooksInsert,
   TWebhooksUpdate,
@@ -1110,6 +1113,11 @@ declare module "knex/types/tables" {
     >;
     [TableName.Integration]: KnexOriginal.CompositeTableType<TIntegrations, TIntegrationsInsert, TIntegrationsUpdate>;
     [TableName.Webhook]: KnexOriginal.CompositeTableType<TWebhooks, TWebhooksInsert, TWebhooksUpdate>;
+    [TableName.WebhookDeliveryLog]: KnexOriginal.CompositeTableType<
+      TWebhookDeliveryLogs,
+      TWebhookDeliveryLogsInsert,
+      TWebhookDeliveryLogsUpdate
+    >;
     [TableName.ServiceToken]: KnexOriginal.CompositeTableType<
       TServiceTokens,
       TServiceTokensInsert,
