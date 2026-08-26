@@ -863,20 +863,7 @@ export const secretSharingServiceFactory = ({
     const updatePayload: TSecretSharingUpdate = {};
 
     if (expiresIn !== undefined) {
-      const expiresAt = new Date(Date.now() + ms(expiresIn));
-
-      $validateSharedSecretExpiry(expiresAt);
-
-      const rootOrg = await orgDAL.findRootOrgDetails(orgId);
-      if (!rootOrg) throw new BadRequestError({ message: `Organization with id ${orgId} not found` });
-
-      // rootOrg.maxSharedSecretLifetime is in seconds
-      const lifetime = expiresAt.getTime() - new Date().getTime();
-      if (rootOrg.maxSharedSecretLifetime && lifetime / 1000 > rootOrg.maxSharedSecretLifetime) {
-        throw new BadRequestError({ message: "Secret lifetime exceeds organization limit" });
-      }
-
-      updatePayload.expiresAt = expiresAt;
+      updatePayload.expiresAt = new Date(Date.now() + ms(expiresIn));
     }
 
     if (password !== undefined) {
