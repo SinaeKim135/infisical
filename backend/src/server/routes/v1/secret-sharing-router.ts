@@ -386,7 +386,7 @@ export const registerSecretSharingRouter = async (server: FastifyZodProvider) =>
       }),
       body: z
         .object({
-          name: z.string().max(50).optional().describe(SECRET_SHARING.CREATE.name),
+          name: z.string().max(50).nullish().describe(SECRET_SHARING.CREATE.name),
           password: z.string().optional().describe(SECRET_SHARING.CREATE.password),
           expiresIn: z.string().optional().describe(SECRET_SHARING.CREATE.expiresIn),
           authorizedEmails: z
@@ -394,7 +394,7 @@ export const registerSecretSharingRouter = async (server: FastifyZodProvider) =>
             .email()
             .array()
             .max(100)
-            .optional()
+            .nullish()
             .transform((val) => (val ? [...new Set(val)] : undefined))
             .describe(SECRET_SHARING.CREATE.authorizedEmails)
         })

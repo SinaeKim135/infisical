@@ -858,7 +858,7 @@ export const secretSharingServiceFactory = ({
     }
 
     if (emails !== undefined) {
-      updatePayload.authorizedEmails = emails.length > 0 ? JSON.stringify(emails) : null;
+      updatePayload.authorizedEmails = emails && emails.length > 0 ? JSON.stringify(emails) : null;
     }
 
     const updatedSharedSecret = await secretSharingDAL.updateById(sharedSecret.id, updatePayload);

@@ -81,17 +81,11 @@ export const EditShareSecretModal = ({ popUp, handlePopUpToggle }: Props) => {
     defaultValues: { name: "", password: "", expiresIn: "30d", emails: "" }
   });
 
-  // the form is a full replacement of the editable fields, so it has to start from what the
-  // link currently holds — otherwise saving one field blanks the others
+  // start each edit from a clean form
   useEffect(() => {
     if (!sharedSecret) return;
 
-    reset({
-      name: sharedSecret.name ?? "",
-      password: "",
-      expiresIn: "30d",
-      emails: (sharedSecret.authorizedEmails ?? []).join(", ")
-    });
+    reset({ name: "", password: "", expiresIn: "30d", emails: "" });
   }, [sharedSecret, reset]);
 
   const onSubmit = async (data: TEditShareSecretForm) => {
