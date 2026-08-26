@@ -71,6 +71,7 @@ import { TTelemetryServiceFactory } from "../telemetry/telemetry-service";
 import { PostHogEventTypes } from "../telemetry/telemetry-types";
 import { TUserDALFactory } from "../user/user-dal";
 import { TWebhookDALFactory } from "../webhook/webhook-dal";
+import { TWebhookDeliveryLogDALFactory } from "../webhook/webhook-delivery-log-dal";
 import { fnTriggerWebhook } from "../webhook/webhook-fns";
 import { WebhookEvents } from "../webhook/webhook-types";
 import { TSecretDALFactory } from "./secret-dal";
@@ -95,6 +96,7 @@ type TSecretQueueFactoryDep = {
   secretDAL: TSecretDALFactory;
   secretImportDAL: Pick<TSecretImportDALFactory, "find" | "findByFolderIds" | "findByIds">;
   webhookDAL: Pick<TWebhookDALFactory, "findAllWebhooks" | "transaction" | "update" | "bulkUpdate">;
+  webhookDeliveryLogDAL: Pick<TWebhookDeliveryLogDALFactory, "insertMany">;
   projectEnvDAL: Pick<TProjectEnvDALFactory, "findOne" | "find">;
   projectDAL: TProjectDALFactory;
   projectBotDAL: TProjectBotDALFactory;
@@ -165,6 +167,7 @@ export const secretQueueFactory = ({
   userDAL,
   serviceTokenDAL,
   webhookDAL,
+  webhookDeliveryLogDAL,
   projectEnvDAL,
   smtpService,
   projectDAL,
@@ -1608,6 +1611,7 @@ export const secretQueueFactory = ({
       projectEnvDAL,
       projectDAL,
       webhookDAL,
+      webhookDeliveryLogDAL,
       event: webhookEvent,
       auditLogService,
       secretManagerDecryptor: (value) => secretManagerDecryptor({ cipherTextBlob: value }).toString()

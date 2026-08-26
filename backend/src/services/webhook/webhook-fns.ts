@@ -1,7 +1,7 @@
 import { AxiosError } from "axios";
 import picomatch from "picomatch";
 
-import { TWebhooks } from "@app/db/schemas";
+import { TWebhookDeliveryLogsInsert, TWebhooks } from "@app/db/schemas";
 import { EventType, TAuditLogServiceFactory, WebhookTriggeredEvent } from "@app/ee/services/audit-log/audit-log-types";
 import { request } from "@app/lib/config/request";
 import { crypto } from "@app/lib/crypto/cryptography";
@@ -15,7 +15,8 @@ import { ActorType } from "@app/services/auth/auth-type";
 import { TProjectDALFactory } from "../project/project-dal";
 import { TProjectEnvDALFactory } from "../project-env/project-env-dal";
 import { TWebhookDALFactory } from "./webhook-dal";
-import { TWebhookPayloads, WebhookEvents, WebhookType } from "./webhook-types";
+import { TWebhookDeliveryLogDALFactory } from "./webhook-delivery-log-dal";
+import { TWebhookPayloads, WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD, WebhookEvents, WebhookType } from "./webhook-types";
 
 const WEBHOOK_TRIGGER_TIMEOUT = 15 * 1000;
 
@@ -274,6 +275,7 @@ export type TFnTriggerWebhookDTO = {
   environment: string;
   event: TWebhookPayloads;
   webhookDAL: Pick<TWebhookDALFactory, "findAllWebhooks" | "transaction" | "update" | "bulkUpdate">;
+  webhookDeliveryLogDAL: Pick<TWebhookDeliveryLogDALFactory, "insertMany">;
   projectEnvDAL: Pick<TProjectEnvDALFactory, "findOne">;
   projectDAL: Pick<TProjectDALFactory, "findById">;
   secretManagerDecryptor: (value: Buffer) => string;
@@ -287,6 +289,7 @@ export const fnTriggerWebhook = async ({
   secretPath,
   projectId,
   webhookDAL,
+  webhookDeliveryLogDAL,
   projectEnvDAL,
   event,
   secretManagerDecryptor,
@@ -300,6 +303,7 @@ export const fnTriggerWebhook = async ({
     return !isDisabled && picomatch.isMatch(secretPath, hookSecretPath, { strictSlashes: false }) && isEventSubscribed;
   });
   if (!toBeTriggeredHooks.length) return;
+  const hookById = new Map(toBeTriggeredHooks.map((hook) => [hook.id, hook]));
   logger.info({ environment, secretPath, projectId }, "Secret webhook job started");
   let { projectName } = event.payload;
   if (!projectName) {
@@ -325,7 +329,7 @@ export const fnTriggerWebhook = async ({
   // filter hooks by status
   const successWebhooks = webhooksTriggered
     .filter(({ status }) => status === "fulfilled")
-    .map((_, i) => {
+    .map((data, i) => {
       eventPayloads.push({
         webhookId: toBeTriggeredHooks[i].id,
         type: event.type,
@@ -337,7 +341,10 @@ export const fnTriggerWebhook = async ({
         status: "success"
       } as WebhookTriggeredEvent["metadata"]);
 
-      return toBeTriggeredHooks[i].id;
+      return {
+        id: toBeTriggeredHooks[i].id,
+        statusCode: data.status === "fulfilled" ? data.value?.status : undefined
+      };
     });
   const failedWebhooks = webhooksTriggered
     .filter(({ status }) => status === "rejected")
@@ -355,9 +362,27 @@ export const fnTriggerWebhook = async ({
 
       return {
         id: toBeTriggeredHooks[i].id,
-        error: data.status === "rejected" ? (data.reason as AxiosError).message : ""
+        error: data.status === "rejected" ? (data.reason as AxiosError).message : "",
+        statusCode: data.status === "rejected" ? (data.reason as AxiosError).response?.status : undefined
       };
     });
+
+  const deliveryLogs: TWebhookDeliveryLogsInsert[] = [
+    ...successWebhooks.map(({ id, statusCode }) => ({
+      webhookId: id,
+      status: "success",
+      statusCode,
+      eventType: event.type,
+      errorMessage: null
+    })),
+    ...failedWebhooks.map(({ id, error, statusCode }) => ({
+      webhookId: id,
+      status: "failed",
+      statusCode,
+      eventType: event.type,
+      errorMessage: error
+    }))
+  ];
 
   await webhookDAL.transaction(async (tx) => {
     const env = await projectEnvDAL.findOne({ projectId, slug: environment }, tx);
@@ -368,20 +393,32 @@ export const fnTriggerWebhook = async ({
     }
     if (successWebhooks.length) {
       await webhookDAL.update(
-        { envId: env.id, $in: { id: successWebhooks } },
-        { lastStatus: "success", lastRunErrorMessage: null },
+        { envId: env.id, $in: { id: successWebhooks.map(({ id }) => id) } },
+        // a delivery that lands clears the failure streak, so a webhook that recovers
+        // on its own never drifts towards the auto-disable threshold
+        { lastStatus: "success", lastRunErrorMessage: null, consecutiveFailures: 0 },
         tx
       );
     }
     if (failedWebhooks.length) {
       await webhookDAL.bulkUpdate(
-        failedWebhooks.map(({ id, error }) => ({
-          id,
-          lastRunErrorMessage: error,
-          lastStatus: "failed"
-        })),
+        failedWebhooks.map(({ id, error }) => {
+          const consecutiveFailures = (hookById.get(id)?.consecutiveFailures ?? 0) + 1;
+          const hasReachedThreshold = consecutiveFailures >= WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD;
+
+          return {
+            id,
+            lastRunErrorMessage: error,
+            lastStatus: "failed",
+            consecutiveFailures,
+            ...(hasReachedThreshold ? { isDisabled: true, autoDisabledAt: new Date() } : {})
+          };
+        }),
         tx
       );
+    }
+    if (deliveryLogs.length) {
+      await webhookDeliveryLogDAL.insertMany(deliveryLogs, tx);
     }
   });
 

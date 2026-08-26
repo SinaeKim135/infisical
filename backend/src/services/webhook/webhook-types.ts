@@ -30,6 +30,20 @@ export type TListWebhookDTO = {
   secretPath?: string;
 } & TProjectPermission;
 
+export type TListWebhookDeliveriesDTO = {
+  id: string;
+  limit: number;
+  offset: number;
+} & Omit<TProjectPermission, "projectId">;
+
+export type TReactivateWebhookDTO = {
+  id: string;
+} & Omit<TProjectPermission, "projectId">;
+
+// A webhook is auto-disabled once this many consecutive deliveries have failed.
+// Any successful delivery resets the counter back to zero.
+export const WEBHOOK_CONSECUTIVE_FAILURE_THRESHOLD = 5;
+
 export enum WebhookType {
   GENERAL = "general",
   SLACK = "slack",

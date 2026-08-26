@@ -6,6 +6,7 @@ import { queryKeys } from "./query";
 import {
   TCreateWebhookDto,
   TDeleteWebhookDto,
+  TReactivateWebhookDto,
   TTestWebhookDTO,
   TUpdateWebhookDto,
   WebhookEvent
@@ -63,6 +64,20 @@ export const useUpdateWebhook = () => {
       const { data } = await apiRequest.patch(`/api/v1/webhooks/${dto.webhookId}`, {
         ...payload
       });
+      return data;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.getWebhooks(projectId) });
+    }
+  });
+};
+
+export const useReactivateWebhook = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<object, object, TReactivateWebhookDto>({
+    mutationFn: async ({ webhookId }) => {
+      const { data } = await apiRequest.post(`/api/v1/webhooks/${webhookId}/reactivate`);
       return data;
     },
     onSuccess: (_, { projectId }) => {
