@@ -70,3 +70,10 @@ export type TDeleteSharedSecretDTO = {
   sharedSecretId: string;
   type: SecretSharingType;
 } & TSharedSecretPermission;
+
+export type TUpdateSharedSecretDTO = {
+  sharedSecretId: string;
+  expiresIn?: string;
+  name?: string | null;
+  emails?: string[] | null;
+} & Omit<TSharedSecretPermission, "name" | "emails">;

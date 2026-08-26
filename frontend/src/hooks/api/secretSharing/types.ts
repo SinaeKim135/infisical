@@ -9,6 +9,7 @@ export type TSharedSecret = {
   accessType: SecretSharingAccessType;
   expiresAt: Date;
   expiresAfterViews: number | null;
+  authorizedEmails: string[] | null;
   encryptedValue: string;
   encryptedSecret: string;
   iv: string;
@@ -34,6 +35,14 @@ export type TCreateSharedSecretRequest = {
   accessType?: SecretSharingAccessType;
   authorizedEmails?: string[];
   allowExternalEmails?: boolean;
+};
+
+export type TUpdateSharedSecretRequest = {
+  sharedSecretId: string;
+  name?: string;
+  password?: string;
+  expiresIn?: string;
+  authorizedEmails?: string[];
 };
 
 export type TCreateSecretRequestRequestDTO = {

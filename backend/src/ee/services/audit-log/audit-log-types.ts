@@ -495,6 +495,7 @@ export enum EventType {
   ROTATE_APP_CONNECTION_CREDENTIALS = "rotate-app-connection-credentials",
   CREATE_SHARED_SECRET = "create-shared-secret",
   CREATE_SECRET_REQUEST = "create-secret-request",
+  UPDATE_SHARED_SECRET = "update-shared-secret",
   DELETE_SHARED_SECRET = "delete-shared-secret",
   READ_SHARED_SECRET = "read-shared-secret",
   GET_SECRET_SYNCS = "get-secret-syncs",
@@ -3823,6 +3824,16 @@ interface CreateSecretRequestEvent {
   };
 }
 
+interface UpdateSharedSecretEvent {
+  type: EventType.UPDATE_SHARED_SECRET;
+  metadata: {
+    id: string;
+    name?: string;
+    expiresAt: string;
+    usingPassword: boolean;
+  };
+}
+
 interface DeleteSharedSecretEvent {
   type: EventType.DELETE_SHARED_SECRET;
   metadata: {
@@ -6589,6 +6600,7 @@ export type Event =
   | AddHostToSshHostGroupEvent
   | RemoveHostFromSshHostGroupEvent
   | CreateSharedSecretEvent
+  | UpdateSharedSecretEvent
   | DeleteSharedSecretEvent
   | ReadSharedSecretEvent
   | GetSecretSyncsEvent
