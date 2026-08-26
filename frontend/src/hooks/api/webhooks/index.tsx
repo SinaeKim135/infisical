@@ -1,2 +1,8 @@
-export { useCreateWebhook, useDeleteWebhook, useTestWebhook, useUpdateWebhook } from "./mutation";
-export { useGetWebhooks } from "./query";
+export {
+  useCreateWebhook,
+  useDeleteWebhook,
+  useReactivateWebhook,
+  useTestWebhook,
+  useUpdateWebhook
+} from "./mutation";
+export { useGetWebhookDeliveries, useGetWebhooks } from "./query";

@@ -1,10 +1,12 @@
 import { useTranslation } from "react-i18next";
 import {
+  faClockRotateLeft,
   faEllipsisV,
   faInfoCircle,
   faPencil,
   faPlug,
   faPlus,
+  faRotateRight,
   faToggleOff,
   faToggleOn,
   faTrash
@@ -41,6 +43,7 @@ import {
   useCreateWebhook,
   useDeleteWebhook,
   useGetWebhooks,
+  useReactivateWebhook,
   useTestWebhook,
   useUpdateWebhook
 } from "@app/hooks/api";
@@ -48,11 +51,54 @@ import {
   TWebhook,
   WEBHOOK_EVENT_METADATA,
   WEBHOOK_EVENTS,
+  WEBHOOK_FAILURE_THRESHOLD,
   WebhookEvent
 } from "@app/hooks/api/webhooks/types";
 
 import { AddWebhookForm, TFormSchema } from "./AddWebhookForm";
 import { EditWebhookEventsModal } from "./EditWebhookEventsModal";
+import { WebhookDeliveriesModal } from "./WebhookDeliveriesModal";
+
+const WebhookStatusCell = ({ webhook }: { webhook: TWebhook }) => {
+  const { lastStatus, isDisabled, autoDisabledAt, updatedAt, lastRunErrorMessage } = webhook;
+
+  if (isDisabled && autoDisabledAt) {
+    return (
+      <Tooltip
+        content={`Auto-disabled on ${format(
+          new Date(autoDisabledAt),
+          "yyyy-MM-dd, hh:mm aaa"
+        )} after ${WEBHOOK_FAILURE_THRESHOLD} consecutive failures. Reactivate it from the menu once the endpoint is healthy.`}
+      >
+        <Badge className="border-[#f5f5f5] bg-[#fdf2f2] text-[#fdf2f2]">Auto-disabled</Badge>
+      </Tooltip>
+    );
+  }
+
+  if (isDisabled) return <Badge variant="neutral">Disabled</Badge>;
+  if (!lastStatus) return <span>-</span>;
+
+  return (
+    <div className="inline-flex w-min items-center rounded-sm bg-mineshaft-600 px-2 py-0.5 text-sm">
+      {lastStatus}{" "}
+      <Tooltip
+        content={
+          <div className="text-xs">
+            <div>Updated At: {format(new Date(updatedAt), "yyyy-MM-dd, hh:mm aaa")}</div>
+            {lastRunErrorMessage && (
+              <div className="mt-2 text-red">Error: {lastRunErrorMessage}</div>
+            )}
+          </div>
+        }
+      >
+        <FontAwesomeIcon
+          className={`ml-1 ${lastStatus === "failed" ? "text-red" : "text-green"}`}
+          icon={faInfoCircle}
+        />
+      </Tooltip>
+    </div>
+  );
+};
 
 export const WebhooksTab = withProjectPermission(
   () => {
@@ -63,7 +109,8 @@ export const WebhooksTab = withProjectPermission(
     const { popUp, handlePopUpOpen, handlePopUpToggle, handlePopUpClose } = usePopUp([
       "addWebhook",
       "deleteWebhook",
-      "editWebhook"
+      "editWebhook",
+      "webhookDeliveries"
     ] as const);
 
     const { data: webhooks, isPending: isWebhooksLoading } = useGetWebhooks(projectId);
@@ -81,6 +128,7 @@ export const WebhooksTab = withProjectPermission(
       isPending: isUpdateWebhookSubmitting
     } = useUpdateWebhook();
     const { mutateAsync: deleteWebhook } = useDeleteWebhook();
+    const { mutateAsync: reactivateWebhook } = useReactivateWebhook();
 
     const handleWebhookCreate = async (data: TFormSchema) => {
       // eventsFilter is the allowlist of events to trigger on
@@ -143,6 +191,17 @@ export const WebhooksTab = withProjectPermission(
       createNotification({
         type: "success",
         text: "Successfully deleted webhook"
+      });
+    };
+
+    const handleWebhookReactivate = async (webhookId: string) => {
+      await reactivateWebhook({
+        webhookId,
+        projectId
+      });
+      createNotification({
+        type: "success",
+        text: "Successfully reactivated webhook"
       });
     };
 
@@ -212,16 +271,8 @@ export const WebhooksTab = withProjectPermission(
                 )}
                 {!isWebhooksLoading &&
                   webhooks?.map((webhook) => {
-                    const {
-                      id,
-                      url,
-                      environment,
-                      secretPath,
-                      lastStatus,
-                      isDisabled,
-                      updatedAt,
-                      lastRunErrorMessage
-                    } = webhook;
+                    const { id, url, environment, secretPath, isDisabled, autoDisabledAt } =
+                      webhook;
 
                     // eventsFilter is the allowlist — empty means every event is enabled.
                     const filteredSet = new Set(webhook.eventsFilter.map((e) => e.eventName));
@@ -279,38 +330,7 @@ export const WebhooksTab = withProjectPermission(
                           </Tooltip>
                         </Td>
                         <Td>
-                          {/* eslint-disable-next-line no-nested-ternary */}
-                          {isDisabled ? (
-                            <Badge variant="neutral">Disabled</Badge>
-                          ) : !lastStatus ? (
-                            "-"
-                          ) : (
-                            <div className="inline-flex w-min items-center rounded-sm bg-mineshaft-600 px-2 py-0.5 text-sm">
-                              {lastStatus}{" "}
-                              <Tooltip
-                                content={
-                                  <div className="text-xs">
-                                    <div>
-                                      Updated At:{" "}
-                                      {format(new Date(updatedAt), "yyyy-MM-dd, hh:mm aaa")}
-                                    </div>
-                                    {lastRunErrorMessage && (
-                                      <div className="mt-2 text-red">
-                                        Error: {lastRunErrorMessage}
-                                      </div>
-                                    )}
-                                  </div>
-                                }
-                              >
-                                <FontAwesomeIcon
-                                  className={`ml-1 ${
-                                    lastStatus === "failed" ? "text-red" : "text-green"
-                                  }`}
-                                  icon={faInfoCircle}
-                                />
-                              </Tooltip>
-                            </div>
-                          )}
+                          <WebhookStatusCell webhook={webhook} />
                         </Td>
                         <Td>
                           <div className="flex items-center justify-end space-x-2">
@@ -388,6 +408,28 @@ export const WebhooksTab = withProjectPermission(
                                     </DropdownMenuItem>
                                   )}
                                 </ProjectPermissionCan>
+                                <DropdownMenuItem
+                                  onClick={() => handlePopUpOpen("webhookDeliveries", webhook)}
+                                  icon={<FontAwesomeIcon icon={faClockRotateLeft} />}
+                                >
+                                  Delivery history
+                                </DropdownMenuItem>
+                                {autoDisabledAt && (
+                                  <ProjectPermissionCan
+                                    I={ProjectPermissionActions.Edit}
+                                    a={ProjectPermissionSub.Webhooks}
+                                  >
+                                    {(isAllowed) => (
+                                      <DropdownMenuItem
+                                        onClick={() => handleWebhookReactivate(id)}
+                                        isDisabled={!isAllowed}
+                                        icon={<FontAwesomeIcon icon={faRotateRight} />}
+                                      >
+                                        Reactivate
+                                      </DropdownMenuItem>
+                                    )}
+                                  </ProjectPermissionCan>
+                                )}
                                 <ProjectPermissionCan
                                   I={ProjectPermissionActions.Delete}
                                   a={ProjectPermissionSub.Webhooks}
@@ -426,6 +468,11 @@ export const WebhooksTab = withProjectPermission(
           onChange={(isOpen) => handlePopUpToggle("deleteWebhook", isOpen)}
           onClose={() => handlePopUpClose("deleteWebhook")}
           onDeleteApproved={handleWebhookDelete}
+        />
+        <WebhookDeliveriesModal
+          isOpen={popUp.webhookDeliveries.isOpen}
+          onOpenChange={(isOpen) => handlePopUpToggle("webhookDeliveries", isOpen)}
+          webhook={popUp.webhookDeliveries.data as TWebhook | undefined}
         />
         <EditWebhookEventsModal
           isOpen={popUp.editWebhook.isOpen}

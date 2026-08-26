@@ -1,4 +1,5 @@
 import { ForbiddenError } from "@casl/ability";
+import { AxiosError } from "axios";
 
 import { ActionProjectType, TWebhooksInsert } from "@app/db/schemas";
 import { TPermissionServiceFactory } from "@app/ee/services/permission/permission-service-types";
@@ -13,12 +14,15 @@ import { KmsDataKey } from "../kms/kms-types";
 import { TProjectDALFactory } from "../project/project-dal";
 import { TProjectEnvDALFactory } from "../project-env/project-env-dal";
 import { TWebhookDALFactory } from "./webhook-dal";
+import { TWebhookDeliveryLogDALFactory } from "./webhook-delivery-log-dal";
 import { decryptWebhookDetails, getWebhookPayload, triggerWebhookRequest } from "./webhook-fns";
 import {
   SUBSCRIBABLE_WEBHOOK_EVENTS,
   TCreateWebhookDTO,
   TDeleteWebhookDTO,
+  TListWebhookDeliveriesDTO,
   TListWebhookDTO,
+  TReactivateWebhookDTO,
   TSubscribableWebhookEvent,
   TTestWebhookDTO,
   TUpdateWebhookDTO,
@@ -27,6 +31,7 @@ import {
 
 type TWebhookServiceFactoryDep = {
   webhookDAL: TWebhookDALFactory;
+  webhookDeliveryLogDAL: TWebhookDeliveryLogDALFactory;
   projectEnvDAL: TProjectEnvDALFactory;
   projectDAL: Pick<TProjectDALFactory, "findById">;
   permissionService: Pick<TPermissionServiceFactory, "getProjectPermission">;
@@ -37,6 +42,7 @@ export type TWebhookServiceFactory = ReturnType<typeof webhookServiceFactory>;
 
 export const webhookServiceFactory = ({
   webhookDAL,
+  webhookDeliveryLogDAL,
   projectEnvDAL,
   permissionService,
   projectDAL,
@@ -181,6 +187,7 @@ export const webhookServiceFactory = ({
 
     ForbiddenError.from(permission).throwUnlessCan(ProjectPermissionActions.Read, ProjectPermissionSub.Webhooks);
     let webhookError: string | undefined;
+    let statusCode: number | undefined;
     try {
       const payload = getWebhookPayload({
         type: WebhookEvents.TestEvent,
@@ -195,19 +202,86 @@ export const webhookServiceFactory = ({
 
       if (!payload) throw new BadRequestError({ message: "Failed to get webhook payload for test event" });
 
-      await triggerWebhookRequest(
+      const response = await triggerWebhookRequest(
         webhook,
         (value) => secretManagerDecryptor({ cipherTextBlob: value }).toString(),
         payload
       );
+      statusCode = response.status;
     } catch (err) {
       webhookError = (err as Error).message;
+      statusCode = (err as AxiosError).response?.status;
     }
     const isSuccess = !webhookError;
     const updatedWebhook = await webhookDAL.updateById(webhook.id, {
       lastStatus: isSuccess ? "success" : "failed",
       lastRunErrorMessage: isSuccess ? null : webhookError
     });
+    // manual tests show up in the delivery history alongside event-driven deliveries so the
+    // drawer is a complete record of what this endpoint has been sent
+    await webhookDeliveryLogDAL.create({
+      webhookId: webhook.id,
+      status: isSuccess ? "success" : "failed",
+      statusCode,
+      eventType: WebhookEvents.TestEvent,
+      errorMessage: webhookError ?? null
+    });
+    return withEventsFilter({ ...webhook, ...updatedWebhook });
+  };
+
+  const listWebhookDeliveries = async ({
+    id,
+    limit,
+    offset,
+    actor,
+    actorId,
+    actorAuthMethod,
+    actorOrgId
+  }: TListWebhookDeliveriesDTO) => {
+    const webhook = await webhookDAL.findById(id);
+    if (!webhook) throw new NotFoundError({ message: `Webhook with ID '${id}' not found` });
+
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId: webhook.projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.Any
+    });
+    ForbiddenError.from(permission).throwUnlessCan(ProjectPermissionActions.Read, ProjectPermissionSub.Webhooks);
+
+    const [deliveries, totalCount] = await Promise.all([
+      webhookDeliveryLogDAL.findByWebhookId(id, { limit, offset }),
+      webhookDeliveryLogDAL.countByWebhookId(id)
+    ]);
+
+    return { deliveries, totalCount };
+  };
+
+  const reactivateWebhook = async ({ id, actor, actorId, actorAuthMethod, actorOrgId }: TReactivateWebhookDTO) => {
+    const webhook = await webhookDAL.findById(id);
+    if (!webhook) throw new NotFoundError({ message: `Webhook with ID '${id}' not found` });
+
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId: webhook.projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.Any
+    });
+    ForbiddenError.from(permission).throwUnlessCan(ProjectPermissionActions.Edit, ProjectPermissionSub.Webhooks);
+
+    // clearing the streak is what makes the webhook eligible to fire again — leaving it at the
+    // threshold would auto-disable the webhook on its very next failure
+    const updatedWebhook = await webhookDAL.updateById(id, {
+      isDisabled: false,
+      autoDisabledAt: null,
+      consecutiveFailures: 0,
+      lastRunErrorMessage: null
+    });
+
     return withEventsFilter({ ...webhook, ...updatedWebhook });
   };
 
@@ -249,6 +323,8 @@ export const webhookServiceFactory = ({
     createWebhook,
     deleteWebhook,
     listWebhooks,
+    listWebhookDeliveries,
+    reactivateWebhook,
     updateWebhook,
     testWebhook
   };
