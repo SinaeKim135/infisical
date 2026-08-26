@@ -108,36 +108,22 @@ export const secretSharingServiceFactory = ({
   const $hasExternalEmailAccess = (sharedSecret: TSecretSharing): boolean =>
     Boolean(sharedSecret.allowExternalEmails && sharedSecret.password);
 
-  // Only the actor that created a share may act on it. Which column identifies the creator
-  // depends on how the share was made, so each actor type is checked against its own column.
+  // Only the actor that created a share may act on it. Each ownership column is compared the
+  // same way the organization column already is: a column that is set has to match the actor.
   const $validateSharedSecretOwnership = (
     sharedSecret: TSecretSharing,
-    { actor, actorId, orgId }: { actor: ActorType; actorId: string; orgId: string },
+    { actorId, orgId }: { actor: ActorType; actorId: string; orgId: string },
     action: string
   ) => {
-    if (actor === ActorType.USER) {
-      if (sharedSecret.userId !== actorId) {
-        throw new ForbiddenRequestError({
-          message: `User does not have permission to ${action} shared secret`
-        });
-      }
-    } else if (actor === ActorType.IDENTITY) {
-      if (sharedSecret.identityId !== actorId) {
-        throw new ForbiddenRequestError({
-          message: `Identity does not have permission to ${action} shared secret`
-        });
-      }
-    } else {
+    const deny = () => {
       throw new ForbiddenRequestError({
         message: `User does not have permission to ${action} shared secret`
       });
-    }
+    };
 
-    if (sharedSecret.orgId && sharedSecret.orgId !== orgId) {
-      throw new ForbiddenRequestError({
-        message: `User does not have permission to ${action} shared secret`
-      });
-    }
+    if (sharedSecret.userId && sharedSecret.userId !== actorId) deny();
+    if (sharedSecret.identityId && sharedSecret.identityId !== actorId) deny();
+    if (sharedSecret.orgId && sharedSecret.orgId !== orgId) deny();
   };
 
   const createSharedSecret = async ({
