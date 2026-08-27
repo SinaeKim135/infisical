@@ -1,0 +1,264 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\":\"skyramp-xproj-src\",\"slug\":\"skyramp-xproj-src\",\"type\":\"secret-manager\"}",
+    "ResponseBody": "{\"project\":{\"id\":\"8f3a1c72-5b4e-4d9a-9c21-0e7b64a1d3f5\",\"name\":\"skyramp-xproj-src\",\"slug\":\"skyramp-xproj-src\",\"type\":\"secret-manager\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:04.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\":\"skyramp-xproj-consumer\",\"slug\":\"skyramp-xproj-consumer\",\"type\":\"secret-manager\"}",
+    "ResponseBody": "{\"project\":{\"id\":\"b2d7e419-6a8c-4f30-8d15-72c9ab04e6d8\",\"name\":\"skyramp-xproj-consumer\",\"slug\":\"skyramp-xproj-consumer\",\"type\":\"secret-manager\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:05.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\":\"8f3a1c72-5b4e-4d9a-9c21-0e7b64a1d3f5\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"value-from-source-project\"}",
+    "ResponseBody": "{\"secret\":{\"secretKey\":\"SHARED_KEY\",\"secretValue\":\"value-from-source-project\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/SHARED_KEY",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:06.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\":\"b2d7e419-6a8c-4f30-8d15-72c9ab04e6d8\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"value-from-consumer-project\"}",
+    "ResponseBody": "{\"secret\":{\"secretKey\":\"SHARED_KEY\",\"secretValue\":\"value-from-consumer-project\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/SHARED_KEY",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:07.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\":\"b2d7e419-6a8c-4f30-8d15-72c9ab04e6d8\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"${SHARED_KEY}\"}",
+    "ResponseBody": "{\"secret\":{\"secretKey\":\"LOCAL_REF\",\"secretValue\":\"${SHARED_KEY}\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/LOCAL_REF",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:08.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\":\"b2d7e419-6a8c-4f30-8d15-72c9ab04e6d8\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"${skyramp-xproj-src::dev.SHARED_KEY}\"}",
+    "ResponseBody": "{\"secret\":{\"secretKey\":\"CROSS_REF\",\"secretValue\":\"${skyramp-xproj-src::dev.SHARED_KEY}\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/CROSS_REF",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:09.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secrets\":[{\"secretKey\":\"CROSS_REF\",\"secretValue\":\"value-from-source-project\"},{\"secretKey\":\"LOCAL_REF\",\"secretValue\":\"value-from-consumer-project\"},{\"secretKey\":\"SHARED_KEY\",\"secretValue\":\"value-from-consumer-project\"}]}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v4/secrets",
+    "QueryParams": {
+      "projectId": [
+        "b2d7e419-6a8c-4f30-8d15-72c9ab04e6d8"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ],
+      "viewSecretValue": [
+        "true"
+      ],
+      "includeImports": [
+        "false"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:10.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"project\":{\"id\":\"8f3a1c72-5b4e-4d9a-9c21-0e7b64a1d3f5\",\"slug\":\"skyramp-xproj-src\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/projects/8f3a1c72-5b4e-4d9a-9c21-0e7b64a1d3f5",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:11.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"project\":{\"id\":\"b2d7e419-6a8c-4f30-8d15-72c9ab04e6d8\",\"slug\":\"skyramp-xproj-consumer\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/projects/b2d7e419-6a8c-4f30-8d15-72c9ab04e6d8",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:13:12.270Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_resolves_source_project_value"
+  }
+]
