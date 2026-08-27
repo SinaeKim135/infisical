@@ -4,7 +4,7 @@ import { SingleValue } from "react-select";
 import { subject } from "@casl/ability";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { CheckCircleIcon, CircleAlertIcon, InfoIcon, LoaderCircleIcon } from "lucide-react";
+import { CheckCircleIcon, CircleAlertIcon, InfoIcon, LoaderCircleIcon, Users } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { z } from "zod";
 
@@ -336,6 +336,8 @@ const SingleEnvContent = ({
     onComplete();
   };
 
+  const overrideCount = Object.values(secrets).flatMap((env) => Object.values(env)).length;
+
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)}>
       <Controller
@@ -405,6 +407,10 @@ const SingleEnvContent = ({
           </Field>
         )}
       />
+      <FieldDescription className="mt-4">
+        <Users className="mr-1 inline size-3" />
+        {`${overrideCount} personal overrides will be moved along with the selected secrets`}
+      </FieldDescription>
       <DialogFooter className="mt-6">
         <DialogClose asChild>
           <Button variant="outline" onClick={onClose}>

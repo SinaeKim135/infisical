@@ -2961,6 +2961,7 @@ export const secretV2BridgeServiceFactory = ({
 
     let isSourceUpdated = false;
     let isDestinationUpdated = false;
+    let movedOverridesCount = 0;
 
     // Moving secrets is a two-step process.
     await secretDAL.transaction(async (tx) => {
@@ -3212,6 +3213,32 @@ export const secretV2BridgeServiceFactory = ({
         isDestinationUpdated = true;
       }
 
+      // Personal overrides live in rows of their own — one per user — and are tied to the shared
+      // secret only by (folderId, key). Nothing moves them when their parent moves, which is how
+      // a move used to strand the caller's override in the folder the secret just left.
+      // Re-point them here, while the destination ids are still in hand.
+      const movedKeys = decryptedSourceSecrets.map((el) => el.key);
+      const sourceOverrides = await secretDAL.findPersonalOverridesByKeys(sourceFolder.id, movedKeys, actorId, tx);
+
+      if (sourceOverrides.length) {
+        const destinationOverrides = await secretDAL.findPersonalOverridesByKeys(
+          destinationFolder.id,
+          movedKeys,
+          actorId,
+          tx
+        );
+
+        // an override already sitting on that key at the destination is left as it is — moving
+        // the source row on top of it would put two rows on the same (folder, key, user)
+        const conflictingOverrides = new Set(destinationOverrides.map((el) => `${el.key}:${el.userId ?? ""}`));
+
+        const transferableOverrideIds = sourceOverrides
+          .filter((el) => !conflictingOverrides.has(`${el.key}:${el.userId ?? ""}`))
+          .map((el) => el.id);
+
+        movedOverridesCount = await secretDAL.movePersonalOverrides(transferableOverrideIds, destinationFolder.id, tx);
+      }
+
       // Next step is to delete the secrets from the source folder:
       const sourceSecretsGroupByKey = groupBy(sourceSecrets, (i) => i.key);
       const locallyDeletedSecrets = decryptedSourceSecrets.map((el) => ({ ...el, operation: SecretOperations.Delete }));
@@ -3352,7 +3379,8 @@ export const secretV2BridgeServiceFactory = ({
     return {
       projectId,
       isSourceUpdated,
-      isDestinationUpdated
+      isDestinationUpdated,
+      movedOverridesCount
     };
   };
 

@@ -84,7 +84,7 @@ jobs:
           # skyramp/testbot v0.11.7 onward -- claude-sonnet-4-6, claude-sonnet-5,
           # claude-opus-4-8, claude-opus-5. Empty is not an error: the action falls
           # back to its `sonnet` alias, which is pinned to claude-sonnet-4-6[1m].
-          model: ''
+          model: 'claude-opus-4-8'
           githubToken: ${{ steps.skyramp-testbot-app-token.outputs.token }}
           # The token minted above is a GitHub App installation token, which dies
           # after 1 hour. Runs on this repo take longer than that, so the push and

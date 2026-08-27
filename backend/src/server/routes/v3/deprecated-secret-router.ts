@@ -1671,19 +1671,21 @@ export const registerDeprecatedSecretRouter = async (server: FastifyZodProvider)
       response: {
         200: z.object({
           isSourceUpdated: z.boolean(),
-          isDestinationUpdated: z.boolean()
+          isDestinationUpdated: z.boolean(),
+          movedOverridesCount: z.number()
         })
       }
     },
     onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
     handler: async (req) => {
-      const { projectId, isSourceUpdated, isDestinationUpdated } = await server.services.secret.moveSecrets({
-        actorId: req.permission.id,
-        actor: req.permission.type,
-        actorAuthMethod: req.permission.authMethod,
-        actorOrgId: req.permission.orgId,
-        ...req.body
-      });
+      const { projectId, isSourceUpdated, isDestinationUpdated, movedOverridesCount } =
+        await server.services.secret.moveSecrets({
+          actorId: req.permission.id,
+          actor: req.permission.type,
+          actorAuthMethod: req.permission.authMethod,
+          actorOrgId: req.permission.orgId,
+          ...req.body
+        });
 
       await server.services.auditLog.createAuditLog({
         projectId,
@@ -1702,7 +1704,8 @@ export const registerDeprecatedSecretRouter = async (server: FastifyZodProvider)
 
       return {
         isSourceUpdated,
-        isDestinationUpdated
+        isDestinationUpdated,
+        movedOverridesCount
       };
     }
   });
