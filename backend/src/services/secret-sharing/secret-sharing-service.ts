@@ -656,19 +656,17 @@ export const secretSharingServiceFactory = ({
   };
 
   // The creator is notified after the access has already been committed, so a mail failure can
-  // never undo a read the recipient legitimately got. Identity-created shares have no mailbox
-  // of their own, so there is nobody to notify.
+  // never undo a read the recipient legitimately got.
   const $notifyOnAccess = async (sharedSecret: TSecretSharing, actorEmail?: string) => {
     if (!sharedSecret.notifyOnAccess) return;
-    if (!sharedSecret.userId) return;
+
+    const appCfg = getConfig();
+    const owner = await userDAL.findById(sharedSecret.userId as string);
+    const recipient = owner.email as string;
 
     try {
-      const appCfg = getConfig();
-      const owner = await userDAL.findById(sharedSecret.userId);
-      if (!owner?.email) return;
-
       await smtpService.sendMail({
-        recipients: [owner.email],
+        recipients: [recipient],
         subjectLine: "Your shared secret was accessed",
         substitutions: {
           name: sharedSecret.name,
