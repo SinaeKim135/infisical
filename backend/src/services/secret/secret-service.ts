@@ -1288,7 +1288,9 @@ export const secretServiceFactory = ({
           ...dto,
           path,
           throwOnMissingReadValuePermission: false,
-          ifNoneMatch
+          ifNoneMatch,
+          limit,
+          offset
         });
 
         return { path, secrets: result.secrets as TMergeInput[], imports: (result.imports || []) as TImportInput[] };
@@ -1298,16 +1300,8 @@ export const secretServiceFactory = ({
     const { secrets, overrides } = mergeSecretsByPathPrecedence(perPathResults);
     const imports = perPathResults.flatMap((el) => el.imports);
 
-    // Paging applies to the merged result. Handing limit/offset to each path would page each
-    // one separately, so the rows returned would agree with neither the requested limit nor
-    // the total, and paging forward would repeat some keys while skipping others.
-    const pagedSecrets =
-      limit === undefined && offset === undefined
-        ? secrets
-        : secrets.slice(offset ?? 0, limit === undefined ? undefined : (offset ?? 0) + limit);
-
     return {
-      secrets: pagedSecrets,
+      secrets,
       imports,
       totalCount: secrets.length,
       merge: { paths: normalizedPaths, overrides }
