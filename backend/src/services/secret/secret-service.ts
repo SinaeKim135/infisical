@@ -73,6 +73,7 @@ import {
   interpolateSecrets,
   recursivelyGetSecretPaths
 } from "./secret-fns";
+import { mergeSecretsByPathPrecedence, normalizeSecretPaths } from "./secret-multi-path-fns";
 import { TSecretQueueFactory } from "./secret-queue";
 import {
   SecretOperations,
@@ -94,6 +95,7 @@ import {
   TGetSecretAccessListDTO,
   TGetSecretsDTO,
   TGetSecretsRawDTO,
+  TGetSecretsRawMultiPathDTO,
   TGetSecretVersionsDTO,
   TMoveSecretsDTO,
   TRedactSecretVersionValueDTO,
@@ -1263,6 +1265,62 @@ export const secretServiceFactory = ({
     });
 
     return secrets;
+  };
+
+  const getSecretsRawMultiPath = async ({ paths, limit, offset, ifNoneMatch, ...dto }: TGetSecretsRawMultiPathDTO) => {
+    const normalizedPaths = normalizeSecretPaths(paths);
+
+    // every path goes through the same read, so the rows have one shape at runtime; the
+    // declared return type is a union only because the single-path reader also carries the
+    // not-modified sentinel, which is handled below before anything reaches the merge
+    type TMergeInput = Extract<Awaited<ReturnType<typeof getSecretsRaw>>["secrets"][number], { secretKey: string }>;
+    type TImportInput = NonNullable<Awaited<ReturnType<typeof getSecretsRaw>>["imports"]>[number];
+
+    // Each path is fetched through getSecretsRaw so per-path permission checks,
+    // import resolution, reference expansion and personal-override handling stay
+    // identical to single-path reads. A path the caller cannot read masks its values
+    // rather than failing the whole request — one unreadable path out of several
+    // should not make the call unusable.
+    const perPathResults = await Promise.all(
+      normalizedPaths.map(async (path) => {
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        const result = await getSecretsRaw({
+          ...dto,
+          path,
+          throwOnMissingReadValuePermission: false,
+          ifNoneMatch
+        });
+
+        // A per-path ETag match only says that path is unchanged; it says nothing about the
+        // merged result, and the sentinel it returns carries an empty body rather than the
+        // path's contents. Read it again without the validator so the merge sees real rows.
+        if ("notModified" in result && result.notModified) {
+          // eslint-disable-next-line @typescript-eslint/no-use-before-define
+          const full = await getSecretsRaw({ ...dto, path, throwOnMissingReadValuePermission: false });
+          return { path, secrets: full.secrets as TMergeInput[], imports: (full.imports || []) as TImportInput[] };
+        }
+
+        return { path, secrets: result.secrets as TMergeInput[], imports: (result.imports || []) as TImportInput[] };
+      })
+    );
+
+    const { secrets, overrides } = mergeSecretsByPathPrecedence(perPathResults);
+    const imports = perPathResults.flatMap((el) => el.imports);
+
+    // Paging applies to the merged result. Handing limit/offset to each path would page each
+    // one separately, so the rows returned would agree with neither the requested limit nor
+    // the total, and paging forward would repeat some keys while skipping others.
+    const pagedSecrets =
+      limit === undefined && offset === undefined
+        ? secrets
+        : secrets.slice(offset ?? 0, limit === undefined ? undefined : (offset ?? 0) + limit);
+
+    return {
+      secrets: pagedSecrets,
+      imports,
+      totalCount: secrets.length,
+      merge: { paths: normalizedPaths, overrides }
+    };
   };
 
   const getSecretReferenceTree = async (dto: TGetSecretReferencesTreeDTO) => {
@@ -3631,6 +3689,7 @@ export const secretServiceFactory = ({
     getSecretsCount,
     getSecretsCountMultiEnv,
     getSecretsRawMultiEnv,
+    getSecretsRawMultiPath,
     getSecretReferenceTree,
     getSecretsRawByFolderMappings,
     getSecretAccessList,
