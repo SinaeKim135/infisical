@@ -370,6 +370,78 @@ export const registerSecretSharingRouter = async (server: FastifyZodProvider) =>
   });
 
   server.route({
+    method: "PATCH",
+    url: "/:id",
+    config: {
+      rateLimit: writeLimit
+    },
+    schema: {
+      hide: false,
+      tags: [ApiDocsTags.SecretSharing],
+      description:
+        "Update an existing shared secret without changing its link. Only the fields present in the request body are modified; the secret value itself cannot be changed.",
+      operationId: "updateSharedSecret",
+      params: z.object({
+        id: z.string().describe(SECRET_SHARING.DELETE.id)
+      }),
+      body: z
+        .object({
+          name: z.string().max(50).nullish().describe(SECRET_SHARING.CREATE.name),
+          password: z.string().optional().describe(SECRET_SHARING.CREATE.password),
+          expiresIn: z.string().optional().describe(SECRET_SHARING.CREATE.expiresIn),
+          authorizedEmails: z
+            .string()
+            .email()
+            .array()
+            .max(100)
+            .nullish()
+            .transform((val) => (val ? [...new Set(val)] : undefined))
+            .describe(SECRET_SHARING.CREATE.authorizedEmails)
+        })
+        .refine(
+          ({ name, password, expiresIn, authorizedEmails }) =>
+            name !== undefined || password !== undefined || expiresIn !== undefined || authorizedEmails !== undefined,
+          "At least one field is required"
+        ),
+      response: {
+        200: SanitizedSecretSharingSchema
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { id } = req.params;
+      const { authorizedEmails, ...restBody } = req.body;
+
+      const updatedSharedSecret = await req.server.services.secretSharing.updateSharedSecretById({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        orgId: req.permission.orgId,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        sharedSecretId: id,
+        ...restBody,
+        emails: authorizedEmails
+      });
+
+      await server.services.auditLog.createAuditLog({
+        orgId: req.permission.orgId,
+        ...req.auditLogInfo,
+        event: {
+          type: EventType.UPDATE_SHARED_SECRET,
+          metadata: {
+            id,
+            name: updatedSharedSecret.name || undefined,
+            expiresAt: updatedSharedSecret.expiresAt.toISOString(),
+            usingPassword: Boolean(updatedSharedSecret.password)
+          }
+        }
+      });
+
+      return updatedSharedSecret;
+    }
+  });
+
+  server.route({
     method: "DELETE",
     url: "/:id",
     config: {
