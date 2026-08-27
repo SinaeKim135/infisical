@@ -3228,25 +3228,15 @@ export const secretV2BridgeServiceFactory = ({
           tx
         );
 
-        // an override the mover already has at the destination is replaced by the one travelling
-        // with the secret, matching what shouldOverwrite means for the shared row itself
-        const supersededOverrideIds = destinationOverrides
-          .filter((destOverride) =>
-            sourceOverrides.some(
-              (srcOverride) => srcOverride.key === destOverride.key && srcOverride.userId === destOverride.userId
-            )
-          )
+        // an override already sitting on that key at the destination is left as it is — moving
+        // the source row on top of it would put two rows on the same (folder, key, user)
+        const conflictingOverrides = new Set(destinationOverrides.map((el) => `${el.key}:${el.userId ?? ""}`));
+
+        const transferableOverrideIds = sourceOverrides
+          .filter((el) => !conflictingOverrides.has(`${el.key}:${el.userId ?? ""}`))
           .map((el) => el.id);
 
-        if (supersededOverrideIds.length) {
-          await secretDAL.delete({ $in: { id: supersededOverrideIds } }, tx);
-        }
-
-        movedOverridesCount = await secretDAL.movePersonalOverrides(
-          sourceOverrides.map((el) => el.id),
-          destinationFolder.id,
-          tx
-        );
+        movedOverridesCount = await secretDAL.movePersonalOverrides(transferableOverrideIds, destinationFolder.id, tx);
       }
 
       // Next step is to delete the secrets from the source folder:
