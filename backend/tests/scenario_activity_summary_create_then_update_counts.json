@@ -1,0 +1,137 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\":\"skyramp-activity-summary\",\"type\":\"secret-manager\"}",
+    "ResponseBody": "{\"project\":{\"id\":\"3f8e1c2a-9b47-4d16-8a5e-71c0d94b6f32\",\"name\":\"skyramp-activity-summary\",\"type\":\"secret-manager\",\"slug\":\"skyramp-activity-summary-ab12\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:23:53.664Z",
+    "Scheme": "http",
+    "scenarioName": "activity_summary_create_then_update_counts"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\":\"3f8e1c2a-9b47-4d16-8a5e-71c0d94b6f32\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"initial\",\"type\":\"shared\"}",
+    "ResponseBody": "{\"secret\":{\"id\":\"7c41d05b-2e88-4a33-9f10-5d6b8e2a4c19\",\"secretKey\":\"ACTIVITY_PROBE\",\"secretValue\":\"initial\",\"version\":1,\"environment\":\"dev\",\"type\":\"shared\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/ACTIVITY_PROBE",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:23:54.664Z",
+    "Scheme": "http",
+    "scenarioName": "activity_summary_create_then_update_counts"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\":\"3f8e1c2a-9b47-4d16-8a5e-71c0d94b6f32\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"rotated\",\"type\":\"shared\"}",
+    "ResponseBody": "{\"secret\":{\"id\":\"7c41d05b-2e88-4a33-9f10-5d6b8e2a4c19\",\"secretKey\":\"ACTIVITY_PROBE\",\"secretValue\":\"rotated\",\"version\":2,\"environment\":\"dev\",\"type\":\"shared\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "PATCH",
+    "Path": "/api/v3/secrets/raw/ACTIVITY_PROBE",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:23:55.664Z",
+    "Scheme": "http",
+    "scenarioName": "activity_summary_create_then_update_counts"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secretsCreated\":1,\"secretsUpdated\":1,\"secretsDeleted\":0}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v1/projects/3f8e1c2a-9b47-4d16-8a5e-71c0d94b6f32/activity-summary",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:23:56.664Z",
+    "Scheme": "http",
+    "scenarioName": "activity_summary_create_then_update_counts"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"workspace\":{\"id\":\"3f8e1c2a-9b47-4d16-8a5e-71c0d94b6f32\",\"name\":\"skyramp-activity-summary\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/workspace/3f8e1c2a-9b47-4d16-8a5e-71c0d94b6f32",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:23:57.664Z",
+    "Scheme": "http",
+    "scenarioName": "activity_summary_create_then_update_counts"
+  }
+]
