@@ -18,6 +18,8 @@ import {
   SecretV3RawResponse,
   SecretV3RawSanitized,
   SecretVersions,
+  TArchivedSecret,
+  TArchiveScopeDTO,
   TGetProjectSecretsAllEnvDTO,
   TGetProjectSecretsDTO,
   TGetProjectSecretsKey,
@@ -31,6 +33,8 @@ import {
 } from "./types";
 
 export const secretKeys = {
+  archived: ({ projectId, secretPath }: { projectId: string; secretPath: string }) =>
+    [{ projectId, secretPath }, "archived-secrets"] as const,
   // this is also used in secretSnapshot part
   getProjectSecret: ({
     projectId,
@@ -377,4 +381,22 @@ export const useGetSecretReferences = (
       Boolean(dto.secretKey),
     queryKey: secretKeys.getSecretReferences(dto),
     queryFn: () => fetchSecretReferences(dto)
+  });
+
+export const useGetArchivedSecrets = ({
+  projectId,
+  environment,
+  secretPath,
+  enabled = true
+}: TArchiveScopeDTO & { enabled?: boolean }) =>
+  useQuery({
+    queryKey: secretKeys.archived({ projectId, secretPath }),
+    queryFn: async () => {
+      const { data } = await apiRequest.get<{ secrets: TArchivedSecret[] }>(
+        "/api/v4/secrets/archived",
+        { params: { projectId, environment, secretPath } }
+      );
+      return data.secrets;
+    },
+    enabled: enabled && Boolean(projectId) && Boolean(environment)
   });

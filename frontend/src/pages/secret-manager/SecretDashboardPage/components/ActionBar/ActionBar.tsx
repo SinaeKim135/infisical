@@ -108,6 +108,7 @@ import {
 import { Filter, RowType } from "../../SecretMainPage.types";
 import { CollapsibleSecretImports } from "../SecretListView/CollapsibleSecretImports";
 import { ReplicateFolderFromBoard } from "./ReplicateFolderFromBoard/ReplicateFolderFromBoard";
+import { ArchivedSecretsModal } from "./ArchivedSecretsModal";
 import { CreateDynamicSecretForm } from "./CreateDynamicSecretForm";
 import { CreateSecretImportForm } from "./CreateSecretImportForm";
 import { FolderForm } from "./FolderForm";
@@ -187,7 +188,8 @@ export const ActionBar = ({
     "replicateFolder",
     "confirmUpload",
     "requestAccess",
-    "importFromVault"
+    "importFromVault",
+    "archivedSecrets"
   ] as const);
   const isProtectedBranch = Boolean(protectedBranchPolicyName);
   const { subscription } = useSubscription();
@@ -1217,6 +1219,16 @@ export const ActionBar = ({
           </ProjectPermissionCan>
         </div>
       </div>
+      <div className="mt-2 flex items-center">
+        <Button
+          variant="outline_bg"
+          leftIcon={<FontAwesomeIcon icon={faTrash} />}
+          onClick={() => handlePopUpOpen("archivedSecrets")}
+          size="xs"
+        >
+          Trash
+        </Button>
+      </div>
       {/* all the side triggers from actions like modals etc */}
       <CreateSecretImportForm
         environment={environment}
@@ -1273,6 +1285,13 @@ export const ActionBar = ({
             />
           )
         }
+      />
+      <ArchivedSecretsModal
+        isOpen={popUp.archivedSecrets.isOpen}
+        onOpenChange={(isOpen) => handlePopUpToggle("archivedSecrets", isOpen)}
+        projectId={projectId}
+        environment={environment}
+        secretPath={secretPath}
       />
       <MoveSecretsModal
         popUp={popUp}
