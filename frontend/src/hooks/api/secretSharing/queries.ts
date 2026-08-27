@@ -5,7 +5,9 @@ import { apiRequest } from "@app/config/request";
 import {
   TBrandingConfig,
   TGetSecretRequestByIdResponse,
+  TGetSharedSecretAccessLogsDTO,
   TSharedSecret,
+  TSharedSecretAccessLog,
   TSharedSecretPublicDetails
 } from "./types";
 
@@ -19,8 +21,27 @@ export const secretSharingKeys = {
   getSharedSecretDetails: (id: string) => ["shared-secret", id] as const,
   getSecretRequestById: (arg: { id: string }) => ["secret-request", arg] as const,
   brandingAssets: () => ["brandingAssets"] as const,
-  sharedSecretBranding: (id: string) => ["shared-secret-branding", id] as const
+  sharedSecretBranding: (id: string) => ["shared-secret-branding", id] as const,
+  sharedSecretAccessLogs: ({ sharedSecretId, limit, offset }: TGetSharedSecretAccessLogsDTO) =>
+    ["shared-secret-access-logs", { sharedSecretId, limit, offset }] as const
 };
+
+export const useGetSharedSecretAccessLogs = ({
+  sharedSecretId,
+  limit = 25,
+  offset = 0
+}: TGetSharedSecretAccessLogsDTO) =>
+  useQuery({
+    queryKey: secretSharingKeys.sharedSecretAccessLogs({ sharedSecretId, limit, offset }),
+    queryFn: async () => {
+      const { data } = await apiRequest.get<{
+        accessLogs: TSharedSecretAccessLog[];
+        totalCount: number;
+      }>(`/api/v1/shared-secrets/${sharedSecretId}/access-logs`, { params: { limit, offset } });
+      return data;
+    },
+    enabled: Boolean(sharedSecretId)
+  });
 
 export const useGetSharedSecrets = ({
   offset = 0,

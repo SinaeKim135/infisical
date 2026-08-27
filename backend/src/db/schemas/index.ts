@@ -207,6 +207,7 @@ export * from "./secret-scanning-findings";
 export * from "./secret-scanning-git-risks";
 export * from "./secret-scanning-resources";
 export * from "./secret-scanning-scans";
+export * from "./secret-share-access-logs";
 export * from "./secret-sharing";
 export * from "./secret-snapshot-folders";
 export * from "./secret-snapshot-secrets";

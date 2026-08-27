@@ -23,6 +23,7 @@ import {
 import { useDeleteSharedSecret } from "@app/hooks/api";
 import { usePopUp } from "@app/hooks/usePopUp";
 
+import { AccessHistoryDrawer } from "./AccessHistoryDrawer";
 import { AddShareSecretModal } from "./AddShareSecretModal";
 import { ShareSecretsTable } from "./ShareSecretsTable";
 
@@ -31,6 +32,7 @@ type DeleteModalData = { name: string; id: string };
 export const ShareSecretTab = () => {
   const { popUp, handlePopUpToggle, handlePopUpClose, handlePopUpOpen } = usePopUp([
     "createSharedSecret",
+    "accessHistory",
     "deleteSharedSecretConfirmation"
   ] as const);
 
@@ -72,6 +74,7 @@ export const ShareSecretTab = () => {
         <ShareSecretsTable handlePopUpOpen={handlePopUpOpen} />
       </CardContent>
       <AddShareSecretModal popUp={popUp} handlePopUpToggle={handlePopUpToggle} />
+      <AccessHistoryDrawer popUp={popUp} handlePopUpToggle={handlePopUpToggle} />
       <AlertDialog
         open={popUp.deleteSharedSecretConfirmation.isOpen}
         onOpenChange={(isOpen) => handlePopUpToggle("deleteSharedSecretConfirmation", isOpen)}

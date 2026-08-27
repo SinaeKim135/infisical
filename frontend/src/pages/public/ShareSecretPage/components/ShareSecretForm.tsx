@@ -77,7 +77,8 @@ const schema = z.object({
         message: "Must be a comma-separated list of valid emails (max 100) or empty."
       }
     ),
-  allowExternalEmails: z.boolean().optional()
+  allowExternalEmails: z.boolean().optional(),
+  notifyOnAccess: z.boolean().optional()
 });
 
 export type FormData = z.infer<typeof schema>;
@@ -148,7 +149,8 @@ export const ShareSecretForm = ({
     accessType: formAccessType,
     emails,
     shouldLimitView,
-    allowExternalEmails
+    allowExternalEmails,
+    notifyOnAccess
   }: FormData) => {
     const processedEmails = emails ? emails.split(",").map((e) => e.trim()) : undefined;
 
@@ -160,7 +162,8 @@ export const ShareSecretForm = ({
       maxViews: shouldLimitView ? Number(viewLimit) : undefined,
       accessType: formAccessType,
       authorizedEmails: processedEmails,
-      allowExternalEmails
+      allowExternalEmails,
+      notifyOnAccess
     });
 
     if (processedEmails && processedEmails.length > 0) {
@@ -480,6 +483,40 @@ export const ShareSecretForm = ({
                     )}
                   />
                 </>
+              )}
+              {!isPublic && (
+                <Controller
+                  control={control}
+                  name="notifyOnAccess"
+                  render={({
+                    field: { onChange, value: isChecked, ...field },
+                    fieldState: { error }
+                  }) => (
+                    <Field orientation="horizontal">
+                      <Switch
+                        checked={isChecked ?? false}
+                        onCheckedChange={onChange}
+                        variant="org"
+                        id="notify-on-access"
+                        {...field}
+                      />
+                      <FieldLabel className="flex-auto">
+                        <span className="flex items-center">
+                          Email me when this is opened
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="ml-2 size-3 cursor-help text-muted" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              You will receive an email each time someone opens this link.
+                            </TooltipContent>
+                          </Tooltip>
+                        </span>
+                      </FieldLabel>
+                      {error && <FieldError>{error.message}</FieldError>}
+                    </Field>
+                  )}
+                />
               )}
             </AccordionContent>
           </AccordionItem>
