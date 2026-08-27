@@ -400,6 +400,8 @@ import { projectDALFactory } from "@app/services/project/project-dal";
 import { projectQueueFactory } from "@app/services/project/project-queue";
 import { projectServiceFactory } from "@app/services/project/project-service";
 import { projectSshConfigDALFactory } from "@app/services/project/project-ssh-config-dal";
+import { projectActivitySummaryDALFactory } from "@app/services/project-activity-summary/project-activity-summary-dal";
+import { projectActivitySummaryServiceFactory } from "@app/services/project-activity-summary/project-activity-summary-service";
 import { projectBotDALFactory } from "@app/services/project-bot/project-bot-dal";
 import { projectBotServiceFactory } from "@app/services/project-bot/project-bot-service";
 import { projectEnvDALFactory } from "@app/services/project-env/project-env-dal";
@@ -528,6 +530,7 @@ export const registerRoutes = async (
   const projectSshConfigDAL = projectSshConfigDALFactory(db);
   const projectMembershipDAL = projectMembershipDALFactory(db);
   const projectEnvDAL = projectEnvDALFactory(db);
+  const projectActivitySummaryDAL = projectActivitySummaryDALFactory(db);
   const projectKeyDAL = projectKeyDALFactory(db);
   const projectBotDAL = projectBotDALFactory(db);
 
@@ -1607,6 +1610,11 @@ export const registerRoutes = async (
     folderDAL,
     accessApprovalPolicyEnvironmentDAL,
     secretApprovalPolicyEnvironmentDAL: sapEnvironmentDAL
+  });
+
+  const projectActivitySummaryService = projectActivitySummaryServiceFactory({
+    projectActivitySummaryDAL,
+    permissionService
   });
 
   const snapshotService = secretSnapshotServiceFactory({
@@ -3183,6 +3191,7 @@ export const registerRoutes = async (
     projectMembership: projectMembershipService,
     projectKey: projectKeyService,
     projectEnv: projectEnvService,
+    projectActivitySummary: projectActivitySummaryService,
     secret: secretService,
     secretReplication: secretReplicationService,
     secretTag: secretTagService,
