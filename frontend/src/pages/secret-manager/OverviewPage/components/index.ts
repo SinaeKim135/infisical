@@ -2,6 +2,7 @@ export * from "./AddResourceButtons";
 export * from "./DownloadEnvButton";
 export * from "./DynamicSecretTableRow";
 export * from "./EmptyResourceDisplay";
+export * from "./EnvironmentDriftView";
 export * from "./EnvironmentSelect";
 export * from "./FolderBreadcrumb";
 export * from "./FolderTableRow";
