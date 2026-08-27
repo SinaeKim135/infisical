@@ -23,6 +23,7 @@ import { TSecretShareBrandConfig } from "../org/org-types";
 import { TOrgAssetDALFactory } from "../org-asset/org-asset-dal";
 import { SmtpTemplates, TSmtpService } from "../smtp/smtp-service";
 import { TUserDALFactory } from "../user/user-dal";
+import { TSecretShareAccessLogDALFactory } from "./secret-share-access-log-dal";
 import { TSecretSharingDALFactory } from "./secret-sharing-dal";
 import {
   SecretSharingType,
@@ -32,6 +33,7 @@ import {
   TDeleteSharedSecretDTO,
   TGetActiveSharedSecretByIdDTO,
   TGetSecretRequestByIdDTO,
+  TGetSharedSecretAccessLogsDTO,
   TGetSharedSecretsDTO,
   TRevealSecretRequestValueDTO,
   TSetSecretRequestValueDTO
@@ -40,6 +42,7 @@ import {
 type TSecretSharingServiceFactoryDep = {
   permissionService: Pick<TPermissionServiceFactory, "getOrgPermission">;
   secretSharingDAL: TSecretSharingDALFactory;
+  secretShareAccessLogDAL: TSecretShareAccessLogDALFactory;
   orgAssetDAL: TOrgAssetDALFactory;
   orgDAL: TOrgDALFactory;
   userDAL: TUserDALFactory;
@@ -74,6 +77,7 @@ const mapIdentifierToId = (sharedSecret: TSecretSharing): Omit<TSecretSharing, "
 export const secretSharingServiceFactory = ({
   permissionService,
   secretSharingDAL,
+  secretShareAccessLogDAL,
   orgAssetDAL,
   orgDAL,
   identityDAL,
@@ -120,7 +124,8 @@ export const secretSharingServiceFactory = ({
     expiresIn,
     maxViews,
     emails,
-    allowExternalEmails
+    allowExternalEmails,
+    notifyOnAccess
   }: TCreateSharedSecretDTO) => {
     const appCfg = getConfig();
 
@@ -219,7 +224,8 @@ export const secretSharingServiceFactory = ({
       orgId,
       accessType,
       authorizedEmails: emails && emails.length > 0 ? JSON.stringify(emails) : undefined,
-      allowExternalEmails: Boolean(allowExternalEmails)
+      allowExternalEmails: Boolean(allowExternalEmails),
+      notifyOnAccess: Boolean(notifyOnAccess)
     });
 
     const mappedSharedSecret = mapIdentifierToId(newSharedSecret);
@@ -639,28 +645,80 @@ export const secretSharingServiceFactory = ({
   const $decrementSecretViewCount = async (sharedSecret: TSecretSharing, tx?: Knex) => {
     const { expiresAfterViews } = sharedSecret;
 
-    let payload: { lastViewedAt: Date; $decr?: { expiresAfterViews: number } } = {
-      lastViewedAt: new Date()
-    };
-    if (expiresAfterViews) {
-      payload = { ...payload, $decr: { expiresAfterViews: 1 } };
-    }
+    // when the view is unlimited there is nothing to decrement — the access log already
+    // carries the timestamp of every read
+    if (!expiresAfterViews) return;
 
-    await secretSharingDAL.updateById(sharedSecret.id, payload, tx);
+    await secretSharingDAL.updateById(sharedSecret.id, { $decr: { expiresAfterViews: 1 } }, tx);
+  };
+
+  // The creator is notified after the access has already been committed, so a mail failure can
+  // never undo a read the recipient legitimately got.
+  const $notifyOnAccess = async (sharedSecret: TSecretSharing, actorEmail?: string) => {
+    if (!sharedSecret.notifyOnAccess) return;
+
+    const appCfg = getConfig();
+    const owner = await userDAL.findById(sharedSecret.userId as string);
+    const recipient = owner.email as string;
+
+    try {
+      await smtpService.sendMail({
+        recipients: [recipient],
+        subjectLine: "Your shared secret was accessed",
+        substitutions: {
+          name: sharedSecret.name,
+          accessedBy: actorEmail,
+          sharedSecretUrl: `${appCfg.SITE_URL}/organizations/${sharedSecret.orgId}/secret-sharing`
+        },
+        template: SmtpTemplates.SecretRequestCompleted
+      });
+    } catch (err) {
+      logger.error(err, `Failed to send shared secret access notification [sharedSecretId=${sharedSecret.id}]`);
+    }
   };
 
   /** Gets password-less secret. validates all secret's requested (must be fresh). */
-  const accessSharedSecret = async ({ sharedSecretId, orgId, actorId, password }: TGetActiveSharedSecretByIdDTO) => {
-    const result = await secretSharingDAL.transaction(async (tx) => {
-      await tx.raw("SELECT pg_advisory_xact_lock(?)", [PgSqlLock.AccessSharedSecret(sharedSecretId)]);
+  const accessSharedSecret = async ({
+    sharedSecretId,
+    orgId,
+    actorId,
+    password,
+    ipAddress,
+    userAgent
+  }: TGetActiveSharedSecretByIdDTO) => {
+    let actorEmail: string | undefined;
+    if (actorId) {
+      const actingUser = await userDAL.findById(actorId);
+      actorEmail = actingUser?.email ?? undefined;
+    }
 
-      const sharedSecret = await secretSharingDAL.findOne(
-        {
-          type: SecretSharingType.Share,
-          identifier: Buffer.from(sharedSecretId, "base64url").toString("hex")
-        },
-        tx
-      );
+    // The gates reject by throwing, and a throw inside the transaction would roll the failure
+    // record back along with it. Resolve the secret and settle every gate first, so a rejected
+    // attempt can be recorded directly, and keep the transaction to the write side.
+    const $recordFailure = async (sharedSecretId2: string, reason: string) => {
+      const failed = await secretSharingDAL.findOne({
+        type: SecretSharingType.Share,
+        identifier: Buffer.from(sharedSecretId2, "base64url").toString("hex")
+      });
+
+      if (failed) {
+        await secretShareAccessLogDAL.create({
+          sharedSecretId: failed.id,
+          actorEmail,
+          ipAddress,
+          userAgent,
+          success: false,
+          failureReason: reason
+        });
+      }
+    };
+
+    let result;
+    try {
+      const sharedSecret = await secretSharingDAL.findOne({
+        type: SecretSharingType.Share,
+        identifier: Buffer.from(sharedSecretId, "base64url").toString("hex")
+      });
 
       if (!sharedSecret) {
         throw new NotFoundError({
@@ -692,13 +750,13 @@ export const secretSharingServiceFactory = ({
       // or can be safely sent to the client.
       if (expiresAt !== null && expiresAt < new Date()) {
         // check lifetime expiry
-        await secretSharingDAL.softDeleteById(sharedSecret.id, tx);
+        await secretSharingDAL.softDeleteById(sharedSecret.id);
         throw new NotFoundError({ message: "The shared secret has expired" });
       }
 
       if (expiresAfterViews !== null && expiresAfterViews === 0) {
         // check view count expiry
-        await secretSharingDAL.softDeleteById(sharedSecret.id, tx);
+        await secretSharingDAL.softDeleteById(sharedSecret.id);
         throw new NotFoundError({ message: "The shared secret has reached its view limit" });
       }
 
@@ -736,17 +794,43 @@ export const secretSharingServiceFactory = ({
         );
       }
 
-      // decrement when we are sure the user will view secret.
-      await $decrementSecretViewCount(sharedSecret, tx);
+      // the write side runs under the advisory lock so concurrent reads serialize
+      result = await secretSharingDAL.transaction(async (tx) => {
+        await tx.raw("SELECT pg_advisory_xact_lock(?)", [PgSqlLock.AccessSharedSecret(sharedSecretId)]);
 
-      return {
-        ...mapIdentifierToId(sharedSecret),
-        secretValue: decryptedSecretValue.toString(),
-        orgName: organization?.name
-      };
-    });
+        // decrement when we are sure the user will view secret.
+        await $decrementSecretViewCount(sharedSecret, tx);
 
-    return result;
+        await secretShareAccessLogDAL.create(
+          {
+            sharedSecretId: sharedSecret.id,
+            actorEmail,
+            ipAddress,
+            userAgent,
+            success: true,
+            failureReason: null
+          },
+          tx
+        );
+
+        return {
+          sharedSecret,
+          response: {
+            ...mapIdentifierToId(sharedSecret),
+            secretValue: decryptedSecretValue.toString(),
+            orgName: organization?.name
+          }
+        };
+      });
+    } catch (err) {
+      await $recordFailure(sharedSecretId, (err as Error).message);
+      throw err;
+    }
+
+    // the notification goes out only once the read is durable
+    await $notifyOnAccess(result.sharedSecret, actorEmail);
+
+    return result.response;
   };
 
   const deleteSharedSecretById = async (deleteSharedSecretInput: TDeleteSharedSecretDTO) => {
@@ -800,6 +884,49 @@ export const secretSharingServiceFactory = ({
     const deletedSharedSecret = await secretSharingDAL.deleteById(sharedSecret.id);
 
     return mapIdentifierToId(deletedSharedSecret);
+  };
+
+  const getSharedSecretAccessLogs = async ({
+    sharedSecretId,
+    limit,
+    offset,
+    actor,
+    actorId,
+    orgId,
+    actorAuthMethod,
+    actorOrgId
+  }: TGetSharedSecretAccessLogsDTO) => {
+    const { permission } = await permissionService.getOrgPermission({
+      scope: OrganizationActionScope.Any,
+      actor,
+      actorId,
+      orgId,
+      actorAuthMethod,
+      actorOrgId
+    });
+    if (!permission) throw new ForbiddenRequestError({ name: "User does not belong to the specified organization" });
+
+    const sharedSecret = await secretSharingDAL.findOne({
+      type: SecretSharingType.Share,
+      identifier: Buffer.from(sharedSecretId, "base64url").toString("hex")
+    });
+
+    if (!sharedSecret) {
+      throw new NotFoundError({ message: `Shared secret with ID '${sharedSecretId}' not found` });
+    }
+
+    if (sharedSecret.orgId && sharedSecret.orgId !== orgId) {
+      throw new ForbiddenRequestError({
+        message: "User does not have permission to read this shared secret's access history"
+      });
+    }
+
+    const [accessLogs, totalCount] = await Promise.all([
+      secretShareAccessLogDAL.findBySharedSecretId(sharedSecret.id, { limit, offset }),
+      secretShareAccessLogDAL.countBySharedSecretId(sharedSecret.id)
+    ]);
+
+    return { accessLogs, totalCount };
   };
 
   const getSharedSecretOrgId = async (sharedSecretId: string) => {
@@ -928,6 +1055,7 @@ export const secretSharingServiceFactory = ({
     createSharedSecret,
     createPublicSharedSecret,
     getSharedSecrets,
+    getSharedSecretAccessLogs,
     deleteSharedSecretById,
     getSharedSecretById,
     accessSharedSecret,
