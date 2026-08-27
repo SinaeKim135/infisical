@@ -2911,19 +2911,6 @@ export const secretV2BridgeServiceFactory = ({
       action: ProjectPermissionSecretActions.Delete
     });
 
-    // archiving takes a secret out of circulation exactly like deleting it did, so it is gated
-    // by the same approval policy — otherwise the policy could be stepped around by archiving
-    const policy =
-      actor === ActorType.USER
-        ? await secretApprovalPolicyService.getSecretApprovalPolicy(projectId, environment, secretPath)
-        : undefined;
-
-    if (policy) {
-      throw new BadRequestError({
-        message: "This environment requires approval to remove secrets. Use the delete flow to open a request."
-      });
-    }
-
     const secrets = await secretDAL.find({
       folderId: folder.id,
       type: SecretType.Shared,
