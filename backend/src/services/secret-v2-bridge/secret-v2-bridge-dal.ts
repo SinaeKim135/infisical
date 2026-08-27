@@ -386,7 +386,8 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
             if (el.type === SecretType.Shared) {
               void bd.orWhere({
                 key: el.key,
-                type: SecretType.Personal
+                type: SecretType.Personal,
+                userId
               });
             }
           });
