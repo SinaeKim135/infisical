@@ -405,6 +405,9 @@ const SingleEnvContent = ({
           </Field>
         )}
       />
+      <FieldDescription className="mt-4">
+        Personal overrides on the selected secrets move with them, for every member who has one.
+      </FieldDescription>
       <DialogFooter className="mt-6">
         <DialogClose asChild>
           <Button variant="outline" onClick={onClose}>

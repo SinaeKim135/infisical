@@ -2961,6 +2961,7 @@ export const secretV2BridgeServiceFactory = ({
 
     let isSourceUpdated = false;
     let isDestinationUpdated = false;
+    let movedOverridesCount = 0;
 
     // Moving secrets is a two-step process.
     await secretDAL.transaction(async (tx) => {
@@ -3212,6 +3213,37 @@ export const secretV2BridgeServiceFactory = ({
         isDestinationUpdated = true;
       }
 
+      // Personal overrides live in rows of their own — one per user — and are tied to the shared
+      // secret only by (folderId, key). Nothing moves them when their parent moves, which is how
+      // a move used to strand every user's override in the folder the secret just left.
+      // Re-point them here, while the destination ids are still in hand.
+      const movedKeys = decryptedSourceSecrets.map((el) => el.key);
+      const sourceOverrides = await secretDAL.findPersonalOverridesByKeys(sourceFolder.id, movedKeys, tx);
+
+      if (sourceOverrides.length) {
+        const destinationOverrides = await secretDAL.findPersonalOverridesByKeys(destinationFolder.id, movedKeys, tx);
+
+        // an override the mover already has at the destination is replaced by the one travelling
+        // with the secret, matching what shouldOverwrite means for the shared row itself
+        const supersededOverrideIds = destinationOverrides
+          .filter((destOverride) =>
+            sourceOverrides.some(
+              (srcOverride) => srcOverride.key === destOverride.key && srcOverride.userId === destOverride.userId
+            )
+          )
+          .map((el) => el.id);
+
+        if (supersededOverrideIds.length) {
+          await secretDAL.delete({ $in: { id: supersededOverrideIds } }, tx);
+        }
+
+        movedOverridesCount = await secretDAL.movePersonalOverrides(
+          sourceOverrides.map((el) => el.id),
+          destinationFolder.id,
+          tx
+        );
+      }
+
       // Next step is to delete the secrets from the source folder:
       const sourceSecretsGroupByKey = groupBy(sourceSecrets, (i) => i.key);
       const locallyDeletedSecrets = decryptedSourceSecrets.map((el) => ({ ...el, operation: SecretOperations.Delete }));
@@ -3352,7 +3384,8 @@ export const secretV2BridgeServiceFactory = ({
     return {
       projectId,
       isSourceUpdated,
-      isDestinationUpdated
+      isDestinationUpdated,
+      movedOverridesCount
     };
   };
 
