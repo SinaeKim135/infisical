@@ -303,3 +303,22 @@ export type SecretAccessListGroupEntry = SecretAccessListEntry & {
   userIds: string[];
   identityIds: string[];
 };
+
+export type TArchiveScopeDTO = {
+  projectId: string;
+  environment: string;
+  secretPath: string;
+};
+
+export type TArchiveSecretsDTO = TArchiveScopeDTO & {
+  secretNames: string[];
+};
+
+export type TArchivedSecret = {
+  id: string;
+  secretKey: string;
+  archivedAt: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
