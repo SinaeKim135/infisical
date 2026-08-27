@@ -1,0 +1,63 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"PLACEHOLDER_PROJECT_ID\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"postgres://user:pass@host:5432/db\"}",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/HOST_SECRET_TEST",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:00:28.220Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-ref-invalid-syntax-graceful"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"HOST_SECRET_TEST\", \"secretValue\": \"postgres://user:pass@host:5432/db\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v4/secrets/HOST_SECRET_TEST",
+    "QueryParams": {
+      "projectId": [
+        "PLACEHOLDER_PROJECT_ID"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:00:29.220Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-ref-invalid-syntax-graceful"
+  }
+]

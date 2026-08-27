@@ -1,0 +1,87 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"PLACEHOLDER_PROJECT_ID\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"resolved-base-value\"}",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/BASE_REF_SECRET",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:00:35.785Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-syntax-contract"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\": \"PLACEHOLDER_PROJECT_ID\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"${BASE_REF_SECRET}\"}",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/REF_SECRET_TEST",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:00:36.785Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-syntax-contract"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"REF_SECRET_TEST\", \"secretValue\": \"resolved-base-value\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v4/secrets/REF_SECRET_TEST",
+    "QueryParams": {
+      "projectId": [
+        "PLACEHOLDER_PROJECT_ID"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:00:37.785Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-syntax-contract"
+  }
+]
