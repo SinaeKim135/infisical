@@ -209,6 +209,7 @@ import {
   DownloadEnvButton,
   DynamicSecretTableRow,
   EmptyResourceDisplay,
+  EnvironmentDriftView,
   EnvironmentSelect,
   FolderBreadcrumb,
   FolderTableRow,
@@ -2643,6 +2644,14 @@ const OverviewPageContent = () => {
             )}
             {tableView === "table" && (
               <>
+                <EnvironmentDriftView
+                  projectId={projectId}
+                  secretPath={secretPath}
+                  environments={userAvailableEnvs.map((env) => ({
+                    slug: env.slug,
+                    name: env.name
+                  }))}
+                />
                 <DragDropProvider onDragEnd={handleSecretImportReorder}>
                   <Table ref={tableRef} className="border-separate border-spacing-0">
                     <TableHeader>

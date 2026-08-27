@@ -423,6 +423,7 @@ import { secretVersionDALFactory } from "@app/services/secret/secret-version-dal
 import { secretVersionTagDALFactory } from "@app/services/secret/secret-version-tag-dal";
 import { secretBlindIndexDALFactory } from "@app/services/secret-blind-index/secret-blind-index-dal";
 import { secretBlindIndexServiceFactory } from "@app/services/secret-blind-index/secret-blind-index-service";
+import { secretDriftServiceFactory } from "@app/services/secret-drift/secret-drift-service";
 import { secretFolderDALFactory } from "@app/services/secret-folder/secret-folder-dal";
 import { secretFolderServiceFactory } from "@app/services/secret-folder/secret-folder-service";
 import { secretFolderVersionDALFactory } from "@app/services/secret-folder/secret-folder-version-dal";
@@ -1735,6 +1736,8 @@ export const registerRoutes = async (
     notificationService,
     telemetryService
   });
+
+  const secretDriftService = secretDriftServiceFactory({ secretV2BridgeService, kmsService });
 
   const secretService = secretServiceFactory({
     folderDAL,
@@ -3184,6 +3187,7 @@ export const registerRoutes = async (
     projectKey: projectKeyService,
     projectEnv: projectEnvService,
     secret: secretService,
+    secretDrift: secretDriftService,
     secretReplication: secretReplicationService,
     secretTag: secretTagService,
     secretValidationRule: secretValidationRuleService,
