@@ -13,9 +13,8 @@ export const projectActivitySummaryDALFactory = (db: TDbClient) => {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      // Counting is done over folder_commit_changes — one row per changed resource — rather than
-      // over folder_commits. A commit can carry any number of changes, and the batch endpoints
-      // and the CLI routinely put many secrets into one.
+      // Counting is done over folder_commits, so a change that touches several resources at
+      // once is reported as the single operation the user performed.
       const result = await db
         .replicaNode()(TableName.FolderCommitChanges)
         .join(TableName.FolderCommit, `${TableName.FolderCommit}.id`, `${TableName.FolderCommitChanges}.folderCommitId`)
@@ -25,15 +24,15 @@ export const projectActivitySummaryDALFactory = (db: TDbClient) => {
         .where(`${TableName.FolderCommitChanges}.createdAt`, ">=", sevenDaysAgo)
         .select(
           db.raw(
-            `COUNT(CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? THEN 1 END)::int AS "secretsCreated"`,
+            `COUNT(DISTINCT CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? THEN "${TableName.FolderCommit}"."id" END)::int AS "secretsCreated"`,
             [ChangeType.ADD]
           ),
           db.raw(
-            `COUNT(CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? AND "${TableName.FolderCommitChanges}"."isUpdate" = true THEN 1 END)::int AS "secretsUpdated"`,
+            `COUNT(DISTINCT CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? AND "${TableName.FolderCommitChanges}"."isUpdate" = true THEN "${TableName.FolderCommit}"."id" END)::int AS "secretsUpdated"`,
             [ChangeType.ADD]
           ),
           db.raw(
-            `COUNT(CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? THEN 1 END)::int AS "secretsDeleted"`,
+            `COUNT(DISTINCT CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? THEN "${TableName.FolderCommit}"."id" END)::int AS "secretsDeleted"`,
             [ChangeType.DELETE]
           )
         )
