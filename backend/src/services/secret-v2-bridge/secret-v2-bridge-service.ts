@@ -3215,13 +3215,18 @@ export const secretV2BridgeServiceFactory = ({
 
       // Personal overrides live in rows of their own — one per user — and are tied to the shared
       // secret only by (folderId, key). Nothing moves them when their parent moves, which is how
-      // a move used to strand every user's override in the folder the secret just left.
+      // a move used to strand the caller's override in the folder the secret just left.
       // Re-point them here, while the destination ids are still in hand.
       const movedKeys = decryptedSourceSecrets.map((el) => el.key);
-      const sourceOverrides = await secretDAL.findPersonalOverridesByKeys(sourceFolder.id, movedKeys, tx);
+      const sourceOverrides = await secretDAL.findPersonalOverridesByKeys(sourceFolder.id, movedKeys, actorId, tx);
 
       if (sourceOverrides.length) {
-        const destinationOverrides = await secretDAL.findPersonalOverridesByKeys(destinationFolder.id, movedKeys, tx);
+        const destinationOverrides = await secretDAL.findPersonalOverridesByKeys(
+          destinationFolder.id,
+          movedKeys,
+          actorId,
+          tx
+        );
 
         // an override the mover already has at the destination is replaced by the one travelling
         // with the secret, matching what shouldOverwrite means for the shared row itself

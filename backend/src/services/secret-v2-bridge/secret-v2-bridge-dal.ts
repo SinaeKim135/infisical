@@ -336,12 +336,12 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
   // Personal overrides are rows of their own, one per user, tied to a shared secret only by
   // (folderId, key). Nothing in the schema moves them when their parent moves, so the caller
   // has to re-point every user's row — not just its own.
-  const findPersonalOverridesByKeys = async (folderId: string, keys: string[], tx?: Knex) => {
+  const findPersonalOverridesByKeys = async (folderId: string, keys: string[], userId?: string, tx?: Knex) => {
     if (!keys.length) return [];
 
     try {
       const docs = await (tx || db.replicaNode())(TableName.SecretV2)
-        .where({ folderId, type: SecretType.Personal })
+        .where({ folderId, type: SecretType.Personal, userId })
         .whereIn("key", keys)
         .select(selectAllTableCols(TableName.SecretV2));
 
