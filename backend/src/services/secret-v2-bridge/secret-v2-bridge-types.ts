@@ -413,3 +413,13 @@ export type TUpdateLinkedSecretReferencesDTO = {
   oldSecretKey: string;
   newSecretKey: string;
 };
+
+export type TArchiveScopeDTO = {
+  projectId: string;
+  environment: string;
+  secretPath: string;
+} & Omit<TProjectPermission, "projectId">;
+
+export type TArchiveSecretsDTO = {
+  secretNames: string[];
+} & TArchiveScopeDTO;

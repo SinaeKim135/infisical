@@ -1214,6 +1214,146 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
     }
   });
 
+  const archiveScopeBody = {
+    projectId: z.string().trim(),
+    environment: z.string().trim(),
+    secretPath: z.string().trim().default("/").transform(removeTrailingSlash)
+  };
+
+  server.route({
+    method: "GET",
+    url: "/archived",
+    config: { rateLimit: secretsLimit },
+    schema: {
+      hide: false,
+      operationId: "listArchivedSecretsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "List the archived secrets at a path",
+      security: [{ bearerAuth: [] }],
+      querystring: z.object({
+        projectId: z.string().trim(),
+        environment: z.string().trim(),
+        secretPath: z.string().trim().default("/").transform(removeTrailingSlash)
+      }),
+      response: {
+        200: z.object({
+          secrets: z
+            .object({
+              id: z.string(),
+              secretKey: z.string(),
+              archivedAt: z.date(),
+              version: z.number(),
+              createdAt: z.date(),
+              updatedAt: z.date()
+            })
+            .array()
+        })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const secrets = await server.services.secretV2Bridge.listArchivedSecrets({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        ...req.query
+      });
+
+      return { secrets };
+    }
+  });
+
+  server.route({
+    method: "POST",
+    url: "/archive",
+    config: { rateLimit: secretsLimit },
+    schema: {
+      hide: false,
+      operationId: "archiveSecretsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Archive secrets so they can be restored later",
+      security: [{ bearerAuth: [] }],
+      body: z.object({
+        ...archiveScopeBody,
+        secretNames: z.string().array().min(1)
+      }),
+      response: {
+        200: z.object({ archivedCount: z.number(), secretNames: z.string().array() })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      return server.services.secretV2Bridge.archiveSecrets({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        ...req.body
+      });
+    }
+  });
+
+  server.route({
+    method: "POST",
+    url: "/restore",
+    config: { rateLimit: secretsLimit },
+    schema: {
+      hide: false,
+      operationId: "restoreSecretsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Restore archived secrets back into the path",
+      security: [{ bearerAuth: [] }],
+      body: z.object({
+        ...archiveScopeBody,
+        secretNames: z.string().array().min(1)
+      }),
+      response: {
+        200: z.object({ restoredCount: z.number(), secretNames: z.string().array() })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      return server.services.secretV2Bridge.restoreSecrets({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        ...req.body
+      });
+    }
+  });
+
+  server.route({
+    method: "DELETE",
+    url: "/archived",
+    config: { rateLimit: secretsLimit },
+    schema: {
+      hide: false,
+      operationId: "deleteArchivedSecretsV4",
+      tags: [ApiDocsTags.Secrets],
+      description: "Permanently delete secrets that are already archived",
+      security: [{ bearerAuth: [] }],
+      body: z.object({
+        ...archiveScopeBody,
+        secretNames: z.string().array().min(1)
+      }),
+      response: {
+        200: z.object({ deletedCount: z.number(), secretNames: z.string().array() })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      return server.services.secretV2Bridge.deleteArchivedSecrets({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        ...req.body
+      });
+    }
+  });
+
   server.route({
     method: "DELETE",
     url: "/batch",
