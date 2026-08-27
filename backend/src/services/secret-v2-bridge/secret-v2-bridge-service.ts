@@ -45,7 +45,7 @@ import { requestMemoKeys } from "@app/lib/request-context/memo-keys";
 import { requestMemoize } from "@app/lib/request-context/request-memoizer";
 import { recordSecretReadMetric } from "@app/lib/telemetry/metrics";
 
-import { ActorType } from "../auth/auth-type";
+import { ActorAuthMethod, ActorType } from "../auth/auth-type";
 import { TCommitResourceChangeDTO, TFolderCommitServiceFactory } from "../folder-commit/folder-commit-service";
 import { TKmsServiceFactory } from "../kms/kms-service";
 import { KmsDataKey } from "../kms/kms-types";
@@ -66,7 +66,11 @@ import { TSecretImportDALFactory } from "../secret-import/secret-import-dal";
 import { fnSecretsV2FromImports } from "../secret-import/secret-import-fns";
 import { TSecretTagDALFactory } from "../secret-tag/secret-tag-dal";
 import { TSecretValidationRuleServiceFactory } from "../secret-validation-rule/secret-validation-rule-service";
-import { expandSecretReferencesFactory, getAllSecretReferences } from "./secret-reference-fns";
+import {
+  expandSecretReferencesFactory,
+  getAllSecretReferences,
+  TCrossProjectReferenceResolver
+} from "./secret-reference-fns";
 import {
   MAX_SECRET_CACHE_BYTES,
   SECRET_DAL_TTL,
@@ -110,7 +114,7 @@ import { TSecretVersionV2TagDALFactory } from "./secret-version-tag-dal";
 
 type TSecretV2BridgeServiceFactoryDep = {
   secretDAL: TSecretV2BridgeDALFactory;
-  projectDAL: Pick<TProjectDALFactory, "findById">;
+  projectDAL: Pick<TProjectDALFactory, "findById" | "findProjectBySlug">;
   secretVersionDAL: TSecretVersionV2DALFactory;
   kmsService: Pick<TKmsServiceFactory, "createCipherPairWithDataKey">;
   secretVersionTagDAL: Pick<TSecretVersionV2TagDALFactory, "insertMany">;
@@ -175,6 +179,63 @@ export const secretV2BridgeServiceFactory = ({
   reminderService,
   secretValidationRuleService
 }: TSecretV2BridgeServiceFactoryDep) => {
+  // Builds a resolver that turns a referenced project slug (in ${<slug>::<env>.<path>.<KEY>})
+  // into an expansion context scoped to that project. Access is enforced per project: the
+  // referenced project must live in the actor's org and the actor must hold a Secret Manager
+  // permission set there. The per-secret ReadValue check is applied during expansion via the
+  // returned canExpandValue. Resolution fails closed (throws) when the project is missing or the
+  // actor lacks access.
+  const $getCrossProjectReferenceResolver = (params: {
+    actor: ActorType;
+    actorId: string;
+    actorAuthMethod: ActorAuthMethod;
+    actorOrgId: string;
+    consumerProjectId: string;
+  }): TCrossProjectReferenceResolver => {
+    return async (projectSlug: string) => {
+      let referencedProject;
+      try {
+        referencedProject = await projectDAL.findProjectBySlug(projectSlug, params.actorOrgId);
+      } catch (error) {
+        throw new ForbiddenRequestError({
+          message: `Cannot resolve cross-project secret reference: project '${projectSlug}' was not found or is not accessible in your organization.`
+        });
+      }
+
+      const { permission } = await permissionService.getProjectPermission({
+        actor: params.actor,
+        actorId: params.actorId,
+        projectId: referencedProject.id,
+        actorAuthMethod: params.actorAuthMethod,
+        actorOrgId: params.actorOrgId,
+        actionProjectType: ActionProjectType.SecretManager
+      });
+
+      const { decryptor: referencedProjectDecryptor } = await kmsService.createCipherPairWithDataKey({
+        type: KmsDataKey.SecretManager,
+        projectId: referencedProject.id
+      });
+
+      // the reading project now holds a value that belongs to the referenced one, so a write
+      // there has to reach this project's cache as well
+      await secretDAL.trackCrossProjectConsumer(referencedProject.id, params.consumerProjectId);
+
+      return {
+        projectId: referencedProject.id,
+        secretDAL,
+        decryptSecretValue: (value) =>
+          value ? referencedProjectDecryptor({ cipherTextBlob: value }).toString() : undefined,
+        canExpandValue: (environment, secretPath, secretName, secretTags) =>
+          hasSecretReadValueOrDescribePermission(permission, ProjectPermissionSecretActions.ReadValue, {
+            environment,
+            secretPath,
+            secretName,
+            secretTags
+          })
+      };
+    };
+  };
+
   const $validateSecretReferences = async (
     projectId: string,
     permission: MongoAbility<ProjectPermissionSet>,
@@ -1433,7 +1494,16 @@ export const secretV2BridgeServiceFactory = ({
           personalOverridesBehavior === PersonalOverridesBehavior.IncludeAll) &&
         expandPersonalOverrides
           ? actorId
-          : undefined
+          : undefined,
+      crossProjectResolver: actorOrgId
+        ? $getCrossProjectReferenceResolver({
+            actor,
+            actorId,
+            actorAuthMethod,
+            actorOrgId,
+            consumerProjectId: projectId
+          })
+        : undefined
     });
 
     if (shouldExpandSecretReferences) {
@@ -1755,7 +1825,16 @@ export const secretV2BridgeServiceFactory = ({
           secretTags: expandSecretTags
         });
       },
-      userId: secretType === SecretType.Personal && expandPersonalOverrides ? actorId : undefined
+      userId: secretType === SecretType.Personal && expandPersonalOverrides ? actorId : undefined,
+      crossProjectResolver: actorOrgId
+        ? $getCrossProjectReferenceResolver({
+            actor,
+            actorId,
+            actorAuthMethod,
+            actorOrgId,
+            consumerProjectId: projectId
+          })
+        : undefined
     });
 
     // now if secret is not found
@@ -3423,7 +3502,16 @@ export const secretV2BridgeServiceFactory = ({
           secretPath: expandSecretPath,
           secretName: expandSecretName,
           secretTags: expandSecretTags
-        })
+        }),
+      crossProjectResolver: actorOrgId
+        ? $getCrossProjectReferenceResolver({
+            actor,
+            actorId,
+            actorAuthMethod,
+            actorOrgId,
+            consumerProjectId: projectId
+          })
+        : undefined
     });
 
     if (
