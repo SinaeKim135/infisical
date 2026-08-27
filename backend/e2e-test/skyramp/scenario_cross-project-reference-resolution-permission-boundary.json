@@ -1,0 +1,96 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"REPLACE_WITH_SOURCE_PROJECT_ID\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"source-secret-value\", \"type\": \"shared\"}",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/API_KEY",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:01:42.803Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-resolution-permission-boundary"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"REPLACE_WITH_CONSUMER_PROJECT_ID\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"${source::dev./.API_KEY}\", \"type\": \"shared\"}",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/CONSUMER",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:01:43.803Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-resolution-permission-boundary"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"CONSUMER\", \"secretValue\": \"source-secret-value\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v3/secrets/raw/CONSUMER",
+    "QueryParams": {
+      "workspaceId": [
+        "REPLACE_WITH_CONSUMER_PROJECT_ID"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:01:44.803Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-resolution-permission-boundary"
+  }
+]
