@@ -645,14 +645,11 @@ export const secretSharingServiceFactory = ({
   const $decrementSecretViewCount = async (sharedSecret: TSecretSharing, tx?: Knex) => {
     const { expiresAfterViews } = sharedSecret;
 
-    let payload: { lastViewedAt: Date; $decr?: { expiresAfterViews: number } } = {
-      lastViewedAt: new Date()
-    };
-    if (expiresAfterViews) {
-      payload = { ...payload, $decr: { expiresAfterViews: 1 } };
-    }
+    // when the view is unlimited there is nothing to decrement — the access log already
+    // carries the timestamp of every read
+    if (!expiresAfterViews) return;
 
-    await secretSharingDAL.updateById(sharedSecret.id, payload, tx);
+    await secretSharingDAL.updateById(sharedSecret.id, { $decr: { expiresAfterViews: 1 } }, tx);
   };
 
   // The creator is notified after the access has already been committed, so a mail failure can
