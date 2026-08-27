@@ -5,6 +5,7 @@ export * from "./EmptyResourceDisplay";
 export * from "./EnvironmentSelect";
 export * from "./FolderBreadcrumb";
 export * from "./FolderTableRow";
+export * from "./MyOverridesPanel";
 export * from "./ResourceCount";
 export * from "./ResourceFilter";
 export * from "./ResourceSearchInput";
