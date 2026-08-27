@@ -528,6 +528,9 @@ import {
   TSecretScanningScans,
   TSecretScanningScansInsert,
   TSecretScanningScansUpdate,
+  TSecretShareAccessLogs,
+  TSecretShareAccessLogsInsert,
+  TSecretShareAccessLogsUpdate,
   TSecretSharing,
   TSecretSharingInsert,
   TSecretSharingUpdate,
@@ -1100,6 +1103,11 @@ declare module "knex/types/tables" {
       TSecretSharing,
       TSecretSharingInsert,
       TSecretSharingUpdate
+    >;
+    [TableName.SecretShareAccessLog]: KnexOriginal.CompositeTableType<
+      TSecretShareAccessLogs,
+      TSecretShareAccessLogsInsert,
+      TSecretShareAccessLogsUpdate
     >;
     [TableName.RateLimit]: KnexOriginal.CompositeTableType<TRateLimit, TRateLimitInsert, TRateLimitUpdate>;
     [TableName.SecretTag]: KnexOriginal.CompositeTableType<TSecretTags, TSecretTagsInsert, TSecretTagsUpdate>;

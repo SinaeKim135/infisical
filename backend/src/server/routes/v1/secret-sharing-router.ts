@@ -3,6 +3,7 @@ import fastifyMultipart from "@fastify/multipart";
 import { fileTypeFromBuffer } from "file-type";
 import { z } from "zod";
 
+import { SecretShareAccessLogsSchema } from "@app/db/schemas";
 import { EventType } from "@app/ee/services/audit-log/audit-log-types";
 import { ApiDocsTags, SECRET_SHARING } from "@app/lib/api-docs";
 import { BadRequestError, NotFoundError } from "@app/lib/errors";
@@ -143,7 +144,9 @@ export const registerSecretSharingRouter = async (server: FastifyZodProvider) =>
         sharedSecretId: req.params.id,
         password: req.body.password,
         orgId: req.permission?.orgId,
-        actorId: req.permission?.id
+        actorId: req.permission?.id,
+        ipAddress: req.realIp,
+        userAgent: req.headers["user-agent"]
       });
 
       if (sharedSecret.orgId) {
@@ -274,7 +277,11 @@ export const registerSecretSharingRouter = async (server: FastifyZodProvider) =>
             .optional()
             .transform((val) => (val ? [...new Set(val)] : undefined))
             .describe(SECRET_SHARING.CREATE.authorizedEmails),
-          allowExternalEmails: z.boolean().optional().describe(SECRET_SHARING.CREATE.allowExternalEmails)
+          allowExternalEmails: z.boolean().optional().describe(SECRET_SHARING.CREATE.allowExternalEmails),
+          notifyOnAccess: z
+            .boolean()
+            .optional()
+            .describe("Whether to email the creator each time this secret is accessed.")
         })
         .superRefine((data, ctx) => {
           const duration = ms(data.expiresIn);
@@ -366,6 +373,49 @@ export const registerSecretSharingRouter = async (server: FastifyZodProvider) =>
       });
 
       return sharedSecret;
+    }
+  });
+
+  server.route({
+    method: "GET",
+    url: "/:id/access-logs",
+    config: {
+      rateLimit: readLimit
+    },
+    schema: {
+      hide: false,
+      tags: [ApiDocsTags.SecretSharing],
+      description:
+        "List the access history of a shared secret you created: who opened the link, from where, and whether the attempt succeeded.",
+      operationId: "listSharedSecretAccessLogs",
+      params: z.object({
+        id: z.string().describe(SECRET_SHARING.GET_BY_ID.id)
+      }),
+      querystring: z.object({
+        limit: z.coerce.number().min(1).max(100).default(25),
+        offset: z.coerce.number().min(0).default(0)
+      }),
+      response: {
+        200: z.object({
+          accessLogs: SecretShareAccessLogsSchema.array(),
+          totalCount: z.number()
+        })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      const { accessLogs, totalCount } = await req.server.services.secretSharing.getSharedSecretAccessLogs({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        orgId: req.permission.orgId,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        sharedSecretId: req.params.id,
+        limit: req.query.limit,
+        offset: req.query.offset
+      });
+
+      return { accessLogs, totalCount };
     }
   });
 

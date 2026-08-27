@@ -30,7 +30,8 @@ export const SecretSharingSchema = z.object({
   type: z.string().default("share"),
   authorizedEmails: z.unknown().nullable().optional(),
   identityId: z.string().uuid().nullable().optional(),
-  allowExternalEmails: z.boolean().default(false).nullable().optional()
+  allowExternalEmails: z.boolean().default(false).nullable().optional(),
+  notifyOnAccess: z.boolean().default(false)
 });
 
 export type TSecretSharing = z.infer<typeof SecretSharingSchema>;
