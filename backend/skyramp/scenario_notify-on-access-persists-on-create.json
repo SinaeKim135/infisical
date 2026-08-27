@@ -1,0 +1,83 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"secretValue\":\"notify-secret-val\",\"expiresIn\":\"1h\",\"notifyOnAccess\":true,\"accessType\":\"organization\"}",
+    "ResponseBody": "{\"id\":\"TtlZbuUBXo3c-vrvwn6dShU388-ywO7BXhR4d1hqZww\",\"notifyOnAccess\":true,\"accessType\":\"organization\",\"expiresAfterViews\":null}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/shared-secrets",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:27:37.700Z",
+    "Scheme": "http",
+    "scenarioName": "notify-on-access-persists-on-create"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"id\":\"TtlZbuUBXo3c-vrvwn6dShU388-ywO7BXhR4d1hqZww\",\"notifyOnAccess\":true,\"accessType\":\"organization\"}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v1/shared-secrets/TtlZbuUBXo3c-vrvwn6dShU388-ywO7BXhR4d1hqZww",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:27:38.700Z",
+    "Scheme": "http",
+    "scenarioName": "notify-on-access-persists-on-create"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/shared-secrets/TtlZbuUBXo3c-vrvwn6dShU388-ywO7BXhR4d1hqZww",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:27:39.700Z",
+    "Scheme": "http",
+    "scenarioName": "notify-on-access-persists-on-create"
+  }
+]
