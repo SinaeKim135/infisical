@@ -697,98 +697,115 @@ export const secretSharingServiceFactory = ({
       actorEmail = actingUser?.email ?? undefined;
     }
 
+    // The gates reject by throwing, and a throw inside the transaction would roll the failure
+    // record back along with it. Resolve the secret and settle every gate first, so a rejected
+    // attempt can be recorded directly, and keep the transaction to the write side.
+    const $recordFailure = async (sharedSecretId2: string, reason: string) => {
+      const failed = await secretSharingDAL.findOne({
+        type: SecretSharingType.Share,
+        identifier: Buffer.from(sharedSecretId2, "base64url").toString("hex")
+      });
+
+      if (failed) {
+        await secretShareAccessLogDAL.create({
+          sharedSecretId: failed.id,
+          actorEmail,
+          ipAddress,
+          userAgent,
+          success: false,
+          failureReason: reason
+        });
+      }
+    };
+
     let result;
     try {
+      const sharedSecret = await secretSharingDAL.findOne({
+        type: SecretSharingType.Share,
+        identifier: Buffer.from(sharedSecretId, "base64url").toString("hex")
+      });
+
+      if (!sharedSecret) {
+        throw new NotFoundError({
+          message: `Shared secret with ID '${sharedSecretId}' not found`
+        });
+      }
+
+      const { accessType, expiresAt, expiresAfterViews } = sharedSecret;
+
+      if (accessType === SecretSharingAccessType.Organization && orgId === undefined) {
+        throw new UnauthorizedError();
+      }
+
+      if (accessType === SecretSharingAccessType.Organization && orgId !== sharedSecret.orgId) {
+        throw new ForbiddenRequestError();
+      }
+
+      const isAuthorizedUser = await $isAuthorizedEmailUser(sharedSecret, actorId);
+      const hasExternalEmailAccess = $hasExternalEmailAccess(sharedSecret);
+
+      if (!isAuthorizedUser && !hasExternalEmailAccess) {
+        if (!actorId) {
+          throw new UnauthorizedError({ message: "Authentication required to view this secret" });
+        }
+        throw new ForbiddenRequestError({ message: "You are not authorized to view this secret" });
+      }
+
+      // all secrets pass through here, meaning we check if its expired first and then check if it needs verification
+      // or can be safely sent to the client.
+      if (expiresAt !== null && expiresAt < new Date()) {
+        // check lifetime expiry
+        await secretSharingDAL.softDeleteById(sharedSecret.id);
+        throw new NotFoundError({ message: "The shared secret has expired" });
+      }
+
+      if (expiresAfterViews !== null && expiresAfterViews === 0) {
+        // check view count expiry
+        await secretSharingDAL.softDeleteById(sharedSecret.id);
+        throw new NotFoundError({ message: "The shared secret has reached its view limit" });
+      }
+
+      // Password checks
+      const isPasswordProtected = Boolean(sharedSecret.password);
+      const hasProvidedPassword = Boolean(password);
+      if (isPasswordProtected) {
+        if (hasProvidedPassword) {
+          const isMatch = await crypto.hashing().compareHash(password as string, sharedSecret.password as string);
+          if (!isMatch) {
+            throw new UnauthorizedError({ message: "Invalid credentials" });
+          }
+        } else {
+          throw new UnauthorizedError({ message: "Password is required to access this secret" });
+        }
+      }
+
+      const decryptWithRoot = kmsService.decryptWithRootKey();
+
+      if (!sharedSecret.encryptedSecret) {
+        throw new BadRequestError({ message: "Secret has no value specified" });
+      }
+      const decryptedSecretValue = decryptWithRoot(sharedSecret.encryptedSecret);
+
+      let organization: TOrganizations | undefined;
+
+      if (
+        sharedSecret.orgId &&
+        sharedSecret.orgId === orgId &&
+        sharedSecret.accessType === SecretSharingAccessType.Organization
+      ) {
+        const sharedOrgId = sharedSecret.orgId;
+        organization = await requestMemoize(requestMemoKeys.orgFindOrgById(sharedOrgId), () =>
+          orgDAL.findOrgById(sharedOrgId)
+        );
+      }
+
+      // the write side runs under the advisory lock so concurrent reads serialize
       result = await secretSharingDAL.transaction(async (tx) => {
         await tx.raw("SELECT pg_advisory_xact_lock(?)", [PgSqlLock.AccessSharedSecret(sharedSecretId)]);
-
-        const sharedSecret = await secretSharingDAL.findOne(
-          {
-            type: SecretSharingType.Share,
-            identifier: Buffer.from(sharedSecretId, "base64url").toString("hex")
-          },
-          tx
-        );
-
-        if (!sharedSecret) {
-          throw new NotFoundError({
-            message: `Shared secret with ID '${sharedSecretId}' not found`
-          });
-        }
-
-        const { accessType, expiresAt, expiresAfterViews } = sharedSecret;
-
-        if (accessType === SecretSharingAccessType.Organization && orgId === undefined) {
-          throw new UnauthorizedError();
-        }
-
-        if (accessType === SecretSharingAccessType.Organization && orgId !== sharedSecret.orgId) {
-          throw new ForbiddenRequestError();
-        }
-
-        const isAuthorizedUser = await $isAuthorizedEmailUser(sharedSecret, actorId);
-        const hasExternalEmailAccess = $hasExternalEmailAccess(sharedSecret);
-
-        if (!isAuthorizedUser && !hasExternalEmailAccess) {
-          if (!actorId) {
-            throw new UnauthorizedError({ message: "Authentication required to view this secret" });
-          }
-          throw new ForbiddenRequestError({ message: "You are not authorized to view this secret" });
-        }
-
-        // all secrets pass through here, meaning we check if its expired first and then check if it needs verification
-        // or can be safely sent to the client.
-        if (expiresAt !== null && expiresAt < new Date()) {
-          // check lifetime expiry
-          await secretSharingDAL.softDeleteById(sharedSecret.id, tx);
-          throw new NotFoundError({ message: "The shared secret has expired" });
-        }
-
-        if (expiresAfterViews !== null && expiresAfterViews === 0) {
-          // check view count expiry
-          await secretSharingDAL.softDeleteById(sharedSecret.id, tx);
-          throw new NotFoundError({ message: "The shared secret has reached its view limit" });
-        }
-
-        // Password checks
-        const isPasswordProtected = Boolean(sharedSecret.password);
-        const hasProvidedPassword = Boolean(password);
-        if (isPasswordProtected) {
-          if (hasProvidedPassword) {
-            const isMatch = await crypto.hashing().compareHash(password as string, sharedSecret.password as string);
-            if (!isMatch) {
-              throw new UnauthorizedError({ message: "Invalid credentials" });
-            }
-          } else {
-            throw new UnauthorizedError({ message: "Password is required to access this secret" });
-          }
-        }
-
-        const decryptWithRoot = kmsService.decryptWithRootKey();
-
-        if (!sharedSecret.encryptedSecret) {
-          throw new BadRequestError({ message: "Secret has no value specified" });
-        }
-        const decryptedSecretValue = decryptWithRoot(sharedSecret.encryptedSecret);
-
-        let organization: TOrganizations | undefined;
-
-        if (
-          sharedSecret.orgId &&
-          sharedSecret.orgId === orgId &&
-          sharedSecret.accessType === SecretSharingAccessType.Organization
-        ) {
-          const sharedOrgId = sharedSecret.orgId;
-          organization = await requestMemoize(requestMemoKeys.orgFindOrgById(sharedOrgId), () =>
-            orgDAL.findOrgById(sharedOrgId)
-          );
-        }
 
         // decrement when we are sure the user will view secret.
         await $decrementSecretViewCount(sharedSecret, tx);
 
-        // the successful read is recorded in the same transaction as the decrement, so the
-        // history can never disagree with the number of views the link has actually spent
         await secretShareAccessLogDAL.create(
           {
             sharedSecretId: sharedSecret.id,
@@ -811,24 +828,7 @@ export const secretSharingServiceFactory = ({
         };
       });
     } catch (err) {
-      // every gate rejects by throwing, which rolls the transaction back — so a failed attempt
-      // has to be recorded outside it, or the record would be rolled back along with the read
-      const failed = await secretSharingDAL.findOne({
-        type: SecretSharingType.Share,
-        identifier: Buffer.from(sharedSecretId, "base64url").toString("hex")
-      });
-
-      if (failed) {
-        await secretShareAccessLogDAL.create({
-          sharedSecretId: failed.id,
-          actorEmail,
-          ipAddress,
-          userAgent,
-          success: false,
-          failureReason: (err as Error).message
-        });
-      }
-
+      await $recordFailure(sharedSecretId, (err as Error).message);
       throw err;
     }
 
