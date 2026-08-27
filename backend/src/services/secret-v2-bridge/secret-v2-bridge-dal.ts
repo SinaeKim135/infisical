@@ -333,6 +333,31 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
     }
   };
 
+  // Personal overrides are rows of their own. Listing them project-wide needs the folder path
+  // and environment joined back on, since an override carries only a folderId.
+  const findPersonalOverridesByProject = async (projectId: string, tx?: Knex) => {
+    try {
+      const docs = await (tx || db.replicaNode())(TableName.SecretV2)
+        .join(TableName.SecretFolder, `${TableName.SecretFolder}.id`, `${TableName.SecretV2}.folderId`)
+        .join(TableName.Environment, `${TableName.Environment}.id`, `${TableName.SecretFolder}.envId`)
+        .where(`${TableName.Environment}.projectId`, projectId)
+        .where(`${TableName.SecretV2}.type`, SecretType.Personal)
+        .select(
+          db.ref("id").withSchema(TableName.SecretV2).as("id"),
+          db.ref("key").withSchema(TableName.SecretV2).as("secretKey"),
+          db.ref("folderId").withSchema(TableName.SecretV2).as("folderId"),
+          db.ref("updatedAt").withSchema(TableName.SecretV2).as("updatedAt"),
+          db.ref("slug").withSchema(TableName.Environment).as("environment"),
+          db.ref("name").withSchema(TableName.Environment).as("environmentName")
+        )
+        .orderBy(`${TableName.SecretV2}.updatedAt`, "desc");
+
+      return docs;
+    } catch (error) {
+      throw new DatabaseError({ error, name: "Find personal overrides by project" });
+    }
+  };
+
   const deleteMany = async (
     data: Array<{ key: string; type: SecretType }>,
     folderId: string,
@@ -1176,6 +1201,7 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
   return {
     ...secretOrm,
+    findPersonalOverridesByProject,
     update,
     bulkUpdate,
     bulkUpdateById,
