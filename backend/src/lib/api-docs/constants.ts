@@ -1269,6 +1269,8 @@ export const RAW_SECRETS = {
       "The slug of the project to list secrets from. This parameter is only applicable by machine identities.",
     environment: "The slug of the environment to list secrets from.",
     secretPath: "The secret path to list secrets from.",
+    secretPaths:
+      "A comma separated list of secret paths to fetch and merge, in ascending precedence order — when the same secret key exists in multiple paths, the value from the later path wins. Takes precedence over secretPath and cannot be combined with recursive. A maximum of 10 paths can be provided.",
     viewSecretValue: "Whether or not to retrieve the secret value.",
     includeImports: "Weather to include imported secrets or not.",
     tagSlugs: "The comma separated tag slugs to filter secrets.",
