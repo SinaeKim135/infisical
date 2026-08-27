@@ -13,6 +13,7 @@ import {
   ForwardIcon,
   GitBranchIcon,
   HistoryIcon,
+  LinkIcon,
   MessageSquareIcon,
   SaveIcon,
   TagsIcon,
@@ -72,6 +73,7 @@ import { ProjectEnv, SecretType, SecretV3RawSanitized, WsTag } from "@app/hooks/
 import { hasSecretReadValueOrDescribePermission } from "@app/lib/fn/permission";
 import { AddShareSecretModal } from "@app/pages/organization/SecretSharingPage/components/ShareSecret/AddShareSecretModal";
 import { CollapsibleSecretImports } from "@app/pages/secret-manager/SecretDashboardPage/components/SecretListView/CollapsibleSecretImports";
+import { CrossProjectReferenceModal } from "@app/pages/secret-manager/SecretDashboardPage/components/SecretListView/CrossProjectReferenceModal";
 import { HIDDEN_SECRET_VALUE } from "@app/pages/secret-manager/SecretDashboardPage/components/SecretListView/SecretItem";
 import { useBatchStoreApi } from "@app/pages/secret-manager/SecretDashboardPage/SecretMainPage.store";
 
@@ -184,7 +186,8 @@ export const SecretEditTableRow = ({
   const { handlePopUpOpen, handlePopUpToggle, handlePopUpClose, popUp } = usePopUp([
     "editSecret",
     "accessInsightsUpgrade",
-    "createSharedSecret"
+    "createSharedSecret",
+    "crossProjectReference"
   ] as const);
 
   const { currentProject } = useProject();
@@ -1526,6 +1529,26 @@ export const SecretEditTableRow = ({
                         : "View Secret References"}
                   </TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger className="block w-full">
+                    <DropdownMenuItem
+                      onClick={() => handlePopUpOpen("crossProjectReference")}
+                      isDisabled={isReadOnly}
+                    >
+                      <LinkIcon />
+                      Insert Cross-Project Reference
+                    </DropdownMenuItem>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {isFetchingSharedValue || isErrorFetchingSharedValue
+                      ? "Reveal the secret value first"
+                      : isImportedSecret || isRotatedSecret
+                        ? "Not available for this secret"
+                        : isReadOnly
+                          ? "Access Denied"
+                          : "Insert a reference to a secret in another project"}
+                  </TooltipContent>
+                </Tooltip>
                 <ProjectPermissionCan
                   I={ProjectPermissionActions.Read}
                   a={ProjectPermissionSub.Commits}
@@ -1721,6 +1744,16 @@ export const SecretEditTableRow = ({
             />
           )
         }
+      />
+      <CrossProjectReferenceModal
+        isOpen={popUp.crossProjectReference.isOpen}
+        onOpenChange={(isModalOpen) => handlePopUpToggle("crossProjectReference", isModalOpen)}
+        onInsert={(reference) => {
+          setValue("value", `${watch("value") || ""}${reference}`, {
+            shouldDirty: true,
+            shouldValidate: true
+          });
+        }}
       />
       <AddShareSecretModal popUp={popUp} handlePopUpToggle={handlePopUpToggle} />
     </>

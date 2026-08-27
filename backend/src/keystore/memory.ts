@@ -75,6 +75,9 @@ export const inMemoryKeyStore = (): TKeyStoreFactory => {
     hashGet: async (key, field) => {
       return hashStore[key]?.[field] ?? null;
     },
+    hashGetAll: async (key) => {
+      return hashStore[key] ?? {};
+    },
     pgIncrementBy: async () => {
       return 1;
     },

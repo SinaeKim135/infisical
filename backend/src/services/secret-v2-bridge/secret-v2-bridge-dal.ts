@@ -30,6 +30,8 @@ export const SecretServiceCacheKeys = {
   getSecretDalVersion: (projectId: string) => {
     return `${SecretServiceCacheKeys.productKey}:${projectId}:${TableName.SecretV2}-dal-version`;
   },
+  getCrossProjectConsumers: (projectId: string) =>
+    `${SecretServiceCacheKeys.productKey}:${projectId}:cross-project-consumers`,
   getSecretsOfServiceLayer: (
     projectId: string,
     version: number,
@@ -53,10 +55,24 @@ export const MAX_SECRET_CACHE_BYTES = 25 * 1024 * 1024;
 export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
   const secretOrm = ormify(db, TableName.SecretV2);
 
-  const invalidateSecretCacheByProjectId = async (projectId: string, tx?: Knex) => {
+  const $invalidateOneProject = async (projectId: string, tx?: Knex) => {
     const secretDalVersionKey = SecretServiceCacheKeys.getSecretDalVersion(projectId);
     await keyStore.pgIncrementBy(secretDalVersionKey, { incr: 1, tx, expiry: SECRET_DAL_VERSION_TTL });
     await keyStore.deleteItem(KeyStorePrefixes.SecretEtag(projectId));
+  };
+
+  // A project that reads a value out of this one has that value sitting in its own cache under
+  // its own project id, so bumping only this project's version would leave the consumer serving
+  // the pre-rotation value until its TTL runs out. Record who reads from us when a reference
+  // resolves, and fan the invalidation out to them.
+  const trackCrossProjectConsumer = async (targetProjectId: string, consumerProjectId: string) => {
+    if (targetProjectId === consumerProjectId) return;
+
+    await keyStore.hashSet(SecretServiceCacheKeys.getCrossProjectConsumers(targetProjectId), consumerProjectId, "1");
+  };
+
+  const invalidateSecretCacheByProjectId = async (projectId: string, tx?: Knex) => {
+    await $invalidateOneProject(projectId, tx);
   };
 
   const findOne = async (filter: Partial<TSecretsV2>, tx?: Knex) => {
@@ -1176,6 +1192,7 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
   return {
     ...secretOrm,
+    trackCrossProjectConsumer,
     update,
     bulkUpdate,
     bulkUpdateById,
