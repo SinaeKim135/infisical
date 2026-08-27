@@ -2923,17 +2923,10 @@ export const secretV2BridgeServiceFactory = ({
 
     const archivedAt = new Date();
 
-    await secretDAL.transaction(async (tx) => {
-      await secretDAL.setArchivedAt(
-        secrets.map((el) => el.id),
-        archivedAt,
-        tx
-      );
-
-      // an archived secret is out of circulation, so its reminders have to stop with it —
-      // the reminder sweep runs off the reminders table and never sees the archive filter
-      await Promise.all(secrets.map((secret) => reminderService.deleteReminderBySecretId(secret.id, projectId, tx)));
-    });
+    await secretDAL.setArchivedAt(
+      secrets.map((el) => el.id),
+      archivedAt
+    );
 
     await secretDAL.invalidateSecretCacheByProjectId(projectId);
     await snapshotService.performSnapshot(folder.id);
