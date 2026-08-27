@@ -207,8 +207,7 @@ export const expandSecretReferencesFactory = ({
   };
 
   const secretCache: Record<string, Record<string, { value: string; tags: string[] }>> = {};
-  const getCacheUniqueKey = (ctxProjectId: string, environment: string, secretPath: string) =>
-    `${ctxProjectId}-${environment}-${secretPath}`;
+  const getCacheUniqueKey = (environment: string, secretPath: string) => `${environment}-${secretPath}`;
 
   const fetchSecret = async (
     ctx: TProjectExpansionContext,
@@ -216,7 +215,7 @@ export const expandSecretReferencesFactory = ({
     secretPath: string,
     secretKey: string
   ) => {
-    const cacheKey = getCacheUniqueKey(ctx.projectId, environment, secretPath);
+    const cacheKey = getCacheUniqueKey(environment, secretPath);
 
     if (secretCache?.[cacheKey]) {
       return secretCache[cacheKey][secretKey] || { value: "", tags: [] };
@@ -366,11 +365,7 @@ export const expandSecretReferencesFactory = ({
             });
           }
 
-          const cacheKey = getCacheUniqueKey(
-            targetCtx.projectId,
-            referencedSecretEnvironmentSlug,
-            referencedSecretPath
-          );
+          const cacheKey = getCacheUniqueKey(referencedSecretEnvironmentSlug, referencedSecretPath);
           if (!secretCache[cacheKey]) secretCache[cacheKey] = {};
           secretCache[cacheKey][referencedSecretKey] = referredValue;
 
