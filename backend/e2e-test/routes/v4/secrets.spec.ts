@@ -694,5 +694,75 @@ describe.each([{ auth: AuthMode.JWT }, { auth: AuthMode.IDENTITY_ACCESS_TOKEN }]
         )
       );
     });
+
+    test.each(secretTestCases)("Archive, list and restore secret in path $path", async ({ secret, path }) => {
+      await createSecret({ path, ...secret });
+
+      const archiveRes = await testServer.inject({
+        method: "POST",
+        url: `/api/v4/secrets/archive`,
+        headers: { authorization: `Bearer ${authToken}` },
+        body: {
+          projectId: seedData1.projectV3.id,
+          environment: seedData1.environment.slug,
+          secretPath: path,
+          secretNames: [secret.key]
+        }
+      });
+      expect(archiveRes.statusCode).toBe(200);
+      expect(JSON.parse(archiveRes.payload)).toEqual(
+        expect.objectContaining({ archivedCount: 1, secretNames: [secret.key] })
+      );
+
+      // archived secrets must disappear from the normal list path
+      const afterArchive = await getSecrets(seedData1.environment.slug, path, false);
+      expect(afterArchive).toEqual(
+        expect.not.arrayContaining([expect.objectContaining({ secretKey: secret.key })])
+      );
+
+      // ...and must appear in the trash
+      const listArchivedRes = await testServer.inject({
+        method: "GET",
+        url: `/api/v4/secrets/archived`,
+        headers: { authorization: `Bearer ${authToken}` },
+        query: {
+          projectId: seedData1.projectV3.id,
+          environment: seedData1.environment.slug,
+          secretPath: path
+        }
+      });
+      expect(listArchivedRes.statusCode).toBe(200);
+      const archivedSecrets = JSON.parse(listArchivedRes.payload).secrets;
+      expect(archivedSecrets).toEqual(
+        expect.arrayContaining([expect.objectContaining({ secretKey: secret.key })])
+      );
+      const archivedEntry = archivedSecrets.find((el: { secretKey: string }) => el.secretKey === secret.key);
+      expect(archivedEntry.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(archivedEntry.archivedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(archivedEntry.version).toEqual(1);
+
+      const restoreRes = await testServer.inject({
+        method: "POST",
+        url: `/api/v4/secrets/restore`,
+        headers: { authorization: `Bearer ${authToken}` },
+        body: {
+          projectId: seedData1.projectV3.id,
+          environment: seedData1.environment.slug,
+          secretPath: path,
+          secretNames: [secret.key]
+        }
+      });
+      expect(restoreRes.statusCode).toBe(200);
+      expect(JSON.parse(restoreRes.payload)).toEqual(
+        expect.objectContaining({ restoredCount: 1, secretNames: [secret.key] })
+      );
+
+      const afterRestore = await getSecrets(seedData1.environment.slug, path, false);
+      expect(afterRestore).toEqual(
+        expect.arrayContaining([expect.objectContaining({ secretKey: secret.key })])
+      );
+
+      await deleteSecret({ path, key: secret.key });
+    });
   }
 );
