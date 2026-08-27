@@ -61,6 +61,7 @@ import { registerOrgIdentityRouter } from "./org-identity-router";
 import { registerOrganizationMembershipsRouter } from "./organization-memberships-router";
 import { registerOrgRouter } from "./organization-router";
 import { registerPasswordRouter } from "./password-router";
+import { registerPersonalOverrideRouter } from "./personal-override-router";
 import { registerPkiAlertRouter } from "./pki-alert-router";
 import { registerPkiCollectionRouter } from "./pki-collection-router";
 import { registerPkiSubscriberRouter } from "./pki-subscriber-router";
@@ -262,6 +263,7 @@ export const registerV1Routes = async (server: FastifyZodProvider) => {
   await server.register(registerProjectBotRouter, { prefix: "/bot" });
   await server.register(registerIntegrationRouter, { prefix: "/integration" });
   await server.register(registerIntegrationAuthRouter, { prefix: "/integration-auth" });
+  await server.register(registerPersonalOverrideRouter, { prefix: "/personal-overrides" });
   await server.register(registerWebhookRouter, { prefix: "/webhooks" });
   await server.register(registerIdentityRouter, { prefix: "/identities" });
 

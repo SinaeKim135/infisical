@@ -212,6 +212,7 @@ import {
   EnvironmentSelect,
   FolderBreadcrumb,
   FolderTableRow,
+  MyOverridesPanel,
   ResourceCount,
   ResourceFilter,
   ResourceSearchInput,
@@ -2643,6 +2644,7 @@ const OverviewPageContent = () => {
             )}
             {tableView === "table" && (
               <>
+                <MyOverridesPanel projectId={projectId} />
                 <DragDropProvider onDragEnd={handleSecretImportReorder}>
                   <Table ref={tableRef} className="border-separate border-spacing-0">
                     <TableHeader>

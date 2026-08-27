@@ -150,6 +150,7 @@ import { TSecretReplicationServiceFactory } from "@app/services/secret-replicati
 import { TSecretSharingServiceFactory } from "@app/services/secret-sharing/secret-sharing-service";
 import { TSecretSyncServiceFactory } from "@app/services/secret-sync/secret-sync-service";
 import { TSecretTagServiceFactory } from "@app/services/secret-tag/secret-tag-service";
+import { TSecretV2BridgeServiceFactory } from "@app/services/secret-v2-bridge/secret-v2-bridge-service";
 import { TSecretValidationRuleServiceFactory } from "@app/services/secret-validation-rule/secret-validation-rule-service";
 import { TServiceTokenServiceFactory } from "@app/services/service-token/service-token-service";
 import { TSignerServiceFactory } from "@app/services/signer/signer-service";
@@ -276,6 +277,7 @@ declare module "fastify" {
       projectEnv: TProjectEnvServiceFactory;
       projectKey: TProjectKeyServiceFactory;
       secret: TSecretServiceFactory;
+      secretV2Bridge: TSecretV2BridgeServiceFactory;
       secretReplication: TSecretReplicationServiceFactory;
       secretTag: TSecretTagServiceFactory;
       secretValidationRule: TSecretValidationRuleServiceFactory;
