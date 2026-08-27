@@ -28,6 +28,7 @@ import {
   SecretImportReferencesBehavior,
   SecretsOrderBy
 } from "@app/services/secret/secret-types";
+import { SecretDriftStatus } from "@app/services/secret-drift/secret-drift-types";
 import { PostHogEventTypes } from "@app/services/telemetry/telemetry-types";
 
 const MAX_DEEP_SEARCH_LIMIT = 500; // arbitrary limit to prevent excessive results
@@ -1776,6 +1777,61 @@ export const registerDashboardRouter = async (server: FastifyZodProvider) => {
       });
 
       return { value: secretVersion.secretValue };
+    }
+  });
+  server.route({
+    method: "GET",
+    url: "/secrets-drift",
+    config: {
+      rateLimit: readLimit
+    },
+    schema: {
+      hide: false,
+      operationId: "getSecretsDrift",
+      description:
+        "Compare a secret path across environments and report, per key, which environments define it, which are missing it, and which hold a different value. Values are never returned.",
+      querystring: z.object({
+        projectId: z.string().trim(),
+        secretPath: z.string().trim().default("/").transform(removeTrailingSlash),
+        environments: z
+          .string()
+          .trim()
+          .transform((val) =>
+            val
+              .split(",")
+              .map((el) => el.trim())
+              .filter(Boolean)
+          )
+      }),
+      response: {
+        200: z.object({
+          environments: z.string().array(),
+          secretPath: z.string(),
+          driftingCount: z.number(),
+          rows: z
+            .object({
+              secretKey: z.string(),
+              isDrifting: z.boolean(),
+              cells: z
+                .object({
+                  environment: z.string(),
+                  status: z.nativeEnum(SecretDriftStatus)
+                })
+                .array()
+            })
+            .array()
+        })
+      }
+    },
+    onRequest: verifyAuth([AuthMode.JWT, AuthMode.IDENTITY_ACCESS_TOKEN]),
+    handler: async (req) => {
+      return server.services.secretDrift.getSecretsDrift({
+        actor: req.permission.type,
+        actorId: req.permission.id,
+        actorAuthMethod: req.permission.authMethod,
+        actorOrgId: req.permission.orgId,
+        ...req.query
+      });
     }
   });
 };
