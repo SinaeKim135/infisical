@@ -351,7 +351,7 @@ export const expandSecretReferencesFactory = ({
           );
 
           if (
-            !targetCtx.canExpandValue(
+            !ctx.canExpandValue(
               referencedSecretEnvironmentSlug,
               referencedSecretPath,
               referencedSecretKey,
