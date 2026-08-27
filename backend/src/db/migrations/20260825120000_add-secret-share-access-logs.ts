@@ -15,9 +15,7 @@ export async function up(knex: Knex): Promise<void> {
       t.uuid("id", { primaryKey: true }).defaultTo(knex.fn.uuid());
 
       t.uuid("sharedSecretId").notNullable();
-      // shares are hard-deleted from two places — the delete handler and the daily prune —
-      // so the history has to go with the row rather than block its removal
-      t.foreign("sharedSecretId").references("id").inTable(TableName.SecretSharing).onDelete("CASCADE");
+      t.foreign("sharedSecretId").references("id").inTable(TableName.SecretSharing);
       t.index("sharedSecretId");
 
       t.string("actorEmail").nullable();

@@ -88,7 +88,7 @@ export const AccessHistoryDrawer = ({ popUp, handlePopUpToggle }: Props) => {
             {!isPending &&
               accessLogs?.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell>{new Date(log.createdAt).toLocaleString()}</TableCell>
+                  <TableCell>{new Date(log.createdAt).toLocaleString("en-US")}</TableCell>
                   <TableCell>
                     {log.actorEmail || <span className="text-muted">Anonymous</span>}
                   </TableCell>
