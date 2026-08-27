@@ -429,6 +429,7 @@ import { secretFolderVersionDALFactory } from "@app/services/secret-folder/secre
 import { secretImportDALFactory } from "@app/services/secret-import/secret-import-dal";
 import { secretImportServiceFactory } from "@app/services/secret-import/secret-import-service";
 import { secretReminderRecipientsDALFactory } from "@app/services/secret-reminder-recipients/secret-reminder-recipients-dal";
+import { secretShareAccessLogDALFactory } from "@app/services/secret-sharing/secret-share-access-log-dal";
 import { secretSharingDALFactory } from "@app/services/secret-sharing/secret-sharing-dal";
 import { secretSharingServiceFactory } from "@app/services/secret-sharing/secret-sharing-service";
 import { secretSyncDALFactory } from "@app/services/secret-sync/secret-sync-dal";
@@ -622,6 +623,7 @@ export const registerRoutes = async (
   const userGroupMembershipDAL = userGroupMembershipDALFactory(db);
   const secretScanningDAL = secretScanningDALFactory(db);
   const secretSharingDAL = secretSharingDALFactory(db);
+  const secretShareAccessLogDAL = secretShareAccessLogDALFactory(db);
   const orgAssetDAL = orgAssetDALFactory(db);
   const licenseDAL = licenseDALFactory(db);
   const dynamicSecretDAL = dynamicSecretDALFactory(db);
@@ -1766,6 +1768,7 @@ export const registerRoutes = async (
   const secretSharingService = secretSharingServiceFactory({
     permissionService,
     secretSharingDAL,
+    secretShareAccessLogDAL,
     orgAssetDAL,
     orgDAL,
     kmsService,
