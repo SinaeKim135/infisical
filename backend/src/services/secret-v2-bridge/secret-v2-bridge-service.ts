@@ -3384,7 +3384,7 @@ export const secretV2BridgeServiceFactory = ({
       return { overrides: [] };
     }
 
-    const rows = await secretDAL.findPersonalOverridesByProject(projectId, actorId);
+    const rows = await secretDAL.findPersonalOverridesByProject(projectId);
     if (!rows.length) return { overrides: [] };
 
     const folderPaths = await folderDAL.findSecretPathByFolderIds(

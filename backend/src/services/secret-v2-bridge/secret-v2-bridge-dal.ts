@@ -333,17 +333,15 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
     }
   };
 
-  // Personal overrides are rows of their own, one per user, and are only ever visible to the
-  // user who owns them. Listing them project-wide needs the folder path and environment joined
-  // back on, since an override carries only a folderId.
-  const findPersonalOverridesByProject = async (projectId: string, userId: string, tx?: Knex) => {
+  // Personal overrides are rows of their own. Listing them project-wide needs the folder path
+  // and environment joined back on, since an override carries only a folderId.
+  const findPersonalOverridesByProject = async (projectId: string, tx?: Knex) => {
     try {
       const docs = await (tx || db.replicaNode())(TableName.SecretV2)
         .join(TableName.SecretFolder, `${TableName.SecretFolder}.id`, `${TableName.SecretV2}.folderId`)
         .join(TableName.Environment, `${TableName.Environment}.id`, `${TableName.SecretFolder}.envId`)
         .where(`${TableName.Environment}.projectId`, projectId)
         .where(`${TableName.SecretV2}.type`, SecretType.Personal)
-        .where(`${TableName.SecretV2}.userId`, userId)
         .select(
           db.ref("id").withSchema(TableName.SecretV2).as("id"),
           db.ref("key").withSchema(TableName.SecretV2).as("secretKey"),
