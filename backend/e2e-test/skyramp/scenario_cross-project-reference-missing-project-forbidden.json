@@ -1,0 +1,69 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"REPLACE_WITH_PROJECT_ID\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"${does-not-exist::dev./.API_KEY}\", \"type\": \"shared\"}",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/BAD_REF",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:01:39.747Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-missing-project-forbidden"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v3/secrets/raw/BAD_REF",
+    "QueryParams": {
+      "workspaceId": [
+        "REPLACE_WITH_PROJECT_ID"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ]
+    },
+    "StatusCode": 403,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:01:40.747Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-reference-missing-project-forbidden"
+  }
+]
