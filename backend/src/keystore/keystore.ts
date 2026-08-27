@@ -210,6 +210,7 @@ export type TKeyStoreFactory = {
   // hash operations
   hashSet: (key: string, field: string, value: string) => Promise<number>;
   hashGet: (key: string, field: string) => Promise<string | null>;
+  hashGetAll: (key: string) => Promise<Record<string, string>>;
   // pg
   pgIncrementBy: (key: string, dto: { incr?: number; expiry?: string; tx?: Knex }) => Promise<number>;
   pgGetIntItem: (key: string, prefix?: string) => Promise<number | undefined>;
@@ -354,6 +355,8 @@ export const keyStoreFactory = (
 
   const hashGet = async (key: string, field: string) => primaryRedis.hget(key, field);
 
+  const hashGetAll = async (key: string) => primaryRedis.hgetall(key);
+
   // List operations
   const listPush = async (key: string, value: string) => primaryRedis.rpush(key, value);
 
@@ -453,6 +456,7 @@ export const keyStoreFactory = (
     pgIncrementBy,
     hashSet,
     hashGet,
+    hashGetAll,
     listPush,
     listRange,
     listRemove,
