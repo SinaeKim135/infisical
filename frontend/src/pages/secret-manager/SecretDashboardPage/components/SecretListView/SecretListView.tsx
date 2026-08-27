@@ -6,7 +6,12 @@ import { createNotification } from "@app/components/notifications";
 import { CreateTagModal } from "@app/components/tags/CreateTagModal";
 import { DeleteActionModal } from "@app/components/v2";
 import { usePopUp } from "@app/hooks";
-import { useCreateSecretV3, useDeleteSecretV3, useUpdateSecretV3 } from "@app/hooks/api";
+import {
+  useArchiveSecrets,
+  useCreateSecretV3,
+  useDeleteSecretV3,
+  useUpdateSecretV3
+} from "@app/hooks/api";
 import { dashboardKeys } from "@app/hooks/api/dashboard/queries";
 import { UsedBySecretSyncs } from "@app/hooks/api/dashboard/types";
 import { commitKeys } from "@app/hooks/api/folderCommits/queries";
@@ -83,6 +88,7 @@ export const SecretListView = ({
   const { mutateAsync: updateSecretV3 } = useUpdateSecretV3({
     options: { onSuccess: undefined }
   });
+  const { mutateAsync: archiveSecrets } = useArchiveSecrets();
   const { mutateAsync: deleteSecretV3 } = useDeleteSecretV3({
     options: { onSuccess: undefined }
   });
@@ -517,7 +523,9 @@ export const SecretListView = ({
       return;
     }
 
-    await handleSecretOperation("delete", SecretType.Shared, key, { secretId });
+    // deleting a secret archives it — it stays recoverable from the trash until it is
+    // permanently deleted from there
+    await archiveSecrets({ projectId, environment, secretPath, secretNames: [key] });
     // wrap this in another function and then reuse
     queryClient.invalidateQueries({
       queryKey: dashboardKeys.getDashboardSecrets({ projectId, secretPath })

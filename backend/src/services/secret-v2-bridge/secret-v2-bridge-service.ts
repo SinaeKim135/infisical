@@ -89,6 +89,8 @@ import {
 import {
   SecretOperations,
   SecretUpdateMode,
+  TArchiveScopeDTO,
+  TArchiveSecretsDTO,
   TBackFillSecretReferencesDTO,
   TCreateManySecretDTO,
   TCreateSecretDTO,
@@ -143,7 +145,7 @@ type TSecretV2BridgeServiceFactoryDep = {
     TKeyStoreFactory,
     "getItem" | "setExpiry" | "setItemWithExpiry" | "deleteItem" | "pgGetIntItem" | "hashGet" | "hashSet"
   >;
-  reminderService: Pick<TReminderServiceFactory, "createReminder" | "getReminder">;
+  reminderService: Pick<TReminderServiceFactory, "createReminder" | "getReminder" | "deleteReminderBySecretId">;
   secretValidationRuleService: Pick<TSecretValidationRuleServiceFactory, "validateSecrets">;
 };
 
@@ -2849,6 +2851,235 @@ export const secretV2BridgeServiceFactory = ({
     return { message: "Successfully backfilled secret references" };
   };
 
+  // Archive lifecycle ------------------------------------------------------------------
+  // Deleting a secret used to be irreversible. Archiving hides a secret from every read path
+  // while keeping the row, so it can be restored; permanent deletion is only allowed once a
+  // secret is already archived.
+
+  const $resolveArchiveTarget = async ({
+    projectId,
+    environment,
+    secretPath,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod,
+    action
+  }: TArchiveScopeDTO & { action: ProjectPermissionSecretActions }) => {
+    const { permission } = await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.SecretManager
+    });
+
+    ForbiddenError.from(permission).throwUnlessCan(
+      action,
+      subject(ProjectPermissionSub.Secrets, { environment, secretPath, secretName: "*", secretTags: ["*"] })
+    );
+
+    const folder = await folderDAL.findBySecretPath(projectId, environment, secretPath);
+    if (!folder)
+      throw new NotFoundError({
+        message: `Folder with path '${secretPath}' in environment with slug '${environment}' not found`,
+        name: "ArchiveSecret"
+      });
+
+    return folder;
+  };
+
+  const archiveSecrets = async ({
+    secretNames,
+    projectId,
+    environment,
+    secretPath,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod
+  }: TArchiveSecretsDTO) => {
+    const folder = await $resolveArchiveTarget({
+      projectId,
+      environment,
+      secretPath,
+      actor,
+      actorId,
+      actorOrgId,
+      actorAuthMethod,
+      action: ProjectPermissionSecretActions.Delete
+    });
+
+    // archiving takes a secret out of circulation exactly like deleting it did, so it is gated
+    // by the same approval policy — otherwise the policy could be stepped around by archiving
+    const policy =
+      actor === ActorType.USER
+        ? await secretApprovalPolicyService.getSecretApprovalPolicy(projectId, environment, secretPath)
+        : undefined;
+
+    if (policy) {
+      throw new BadRequestError({
+        message: "This environment requires approval to remove secrets. Use the delete flow to open a request."
+      });
+    }
+
+    const secrets = await secretDAL.find({
+      folderId: folder.id,
+      type: SecretType.Shared,
+      $in: { key: secretNames }
+    });
+
+    if (secrets.length !== secretNames.length) {
+      throw new NotFoundError({ message: "One or more secrets not found" });
+    }
+
+    const archivedAt = new Date();
+
+    await secretDAL.transaction(async (tx) => {
+      await secretDAL.setArchivedAt(
+        secrets.map((el) => el.id),
+        archivedAt,
+        tx
+      );
+
+      // an archived secret is out of circulation, so its reminders have to stop with it —
+      // the reminder sweep runs off the reminders table and never sees the archive filter
+      await Promise.all(secrets.map((secret) => reminderService.deleteReminderBySecretId(secret.id, projectId, tx)));
+    });
+
+    await secretDAL.invalidateSecretCacheByProjectId(projectId);
+    await snapshotService.performSnapshot(folder.id);
+
+    return { archivedCount: secrets.length, secretNames };
+  };
+
+  const restoreSecrets = async ({
+    secretNames,
+    projectId,
+    environment,
+    secretPath,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod
+  }: TArchiveSecretsDTO) => {
+    const folder = await $resolveArchiveTarget({
+      projectId,
+      environment,
+      secretPath,
+      actor,
+      actorId,
+      actorOrgId,
+      actorAuthMethod,
+      action: ProjectPermissionSecretActions.Create
+    });
+
+    const archived = await secretDAL.findArchivedByFolderId(folder.id);
+    const toRestore = archived.filter((el) => secretNames.includes(el.key));
+
+    if (toRestore.length !== secretNames.length) {
+      throw new NotFoundError({ message: "One or more archived secrets not found" });
+    }
+
+    // An archived key does not hold its name, so the name may have been taken again while the
+    // secret sat in the trash. Restoring on top of a live key would put two active rows on the
+    // same (folder, key) — nothing in the schema stops that.
+    const activeWithSameKey = await secretDAL.find({
+      folderId: folder.id,
+      type: SecretType.Shared,
+      $in: { key: secretNames }
+    });
+
+    const liveKeys = activeWithSameKey.filter((el) => !el.archivedAt).map((el) => el.key);
+    if (liveKeys.length) {
+      throw new BadRequestError({
+        message: `Cannot restore: a secret named ${liveKeys.join(", ")} already exists at this path`
+      });
+    }
+
+    await secretDAL.setArchivedAt(
+      toRestore.map((el) => el.id),
+      null
+    );
+
+    await secretDAL.invalidateSecretCacheByProjectId(projectId);
+    await snapshotService.performSnapshot(folder.id);
+
+    return { restoredCount: toRestore.length, secretNames };
+  };
+
+  const listArchivedSecrets = async ({
+    projectId,
+    environment,
+    secretPath,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod
+  }: TArchiveScopeDTO) => {
+    const folder = await $resolveArchiveTarget({
+      projectId,
+      environment,
+      secretPath,
+      actor,
+      actorId,
+      actorOrgId,
+      actorAuthMethod,
+      action: ProjectPermissionSecretActions.DescribeSecret
+    });
+
+    const archived = await secretDAL.findArchivedByFolderId(folder.id);
+
+    return archived.map((el) => ({
+      id: el.id,
+      secretKey: el.key,
+      archivedAt: el.archivedAt as Date,
+      version: el.version,
+      createdAt: el.createdAt,
+      updatedAt: el.updatedAt
+    }));
+  };
+
+  const deleteArchivedSecrets = async ({
+    secretNames,
+    projectId,
+    environment,
+    secretPath,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod
+  }: TArchiveSecretsDTO) => {
+    const folder = await $resolveArchiveTarget({
+      projectId,
+      environment,
+      secretPath,
+      actor,
+      actorId,
+      actorOrgId,
+      actorAuthMethod,
+      action: ProjectPermissionSecretActions.Delete
+    });
+
+    const archived = await secretDAL.findArchivedByFolderId(folder.id);
+    const toDelete = archived.filter((el) => secretNames.includes(el.key));
+
+    // permanent deletion is only reachable from the trash — a live secret has to be archived first
+    if (toDelete.length !== secretNames.length) {
+      throw new NotFoundError({
+        message: "One or more secrets are not archived. Archive a secret before deleting it permanently."
+      });
+    }
+
+    await secretDAL.delete({ $in: { id: toDelete.map((el) => el.id) } });
+
+    await secretDAL.invalidateSecretCacheByProjectId(projectId);
+    await snapshotService.performSnapshot(folder.id);
+
+    return { deletedCount: toDelete.length, secretNames };
+  };
+
   const moveSecrets = async ({
     sourceEnvironment,
     sourceSecretPath,
@@ -3990,6 +4221,10 @@ export const secretV2BridgeServiceFactory = ({
   };
 
   return {
+    archiveSecrets,
+    restoreSecrets,
+    listArchivedSecrets,
+    deleteArchivedSecrets,
     createSecret,
     deleteSecret,
     updateSecret,

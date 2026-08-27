@@ -75,9 +75,9 @@ import {
 import { OrgMembershipRole } from "@app/helpers/roles";
 import { usePopUp } from "@app/hooks";
 import {
+  useArchiveSecrets,
   useCreateFolder,
   useCreateSecretBatch,
-  useDeleteSecretBatch,
   useMoveSecrets,
   useUpdateSecretBatch
 } from "@app/hooks/api";
@@ -108,6 +108,7 @@ import {
 import { Filter, RowType } from "../../SecretMainPage.types";
 import { CollapsibleSecretImports } from "../SecretListView/CollapsibleSecretImports";
 import { ReplicateFolderFromBoard } from "./ReplicateFolderFromBoard/ReplicateFolderFromBoard";
+import { ArchivedSecretsModal } from "./ArchivedSecretsModal";
 import { CreateDynamicSecretForm } from "./CreateDynamicSecretForm";
 import { CreateSecretImportForm } from "./CreateSecretImportForm";
 import { FolderForm } from "./FolderForm";
@@ -187,13 +188,14 @@ export const ActionBar = ({
     "replicateFolder",
     "confirmUpload",
     "requestAccess",
-    "importFromVault"
+    "importFromVault",
+    "archivedSecrets"
   ] as const);
   const isProtectedBranch = Boolean(protectedBranchPolicyName);
   const { subscription } = useSubscription();
   const { openPopUp } = usePopUpAction();
   const { mutateAsync: createFolder } = useCreateFolder();
-  const { mutateAsync: deleteBatchSecretV3 } = useDeleteSecretBatch();
+  const { mutateAsync: archiveSecrets } = useArchiveSecrets();
   const { mutateAsync: moveSecrets } = useMoveSecrets();
   const { mutateAsync: updateSecretBatch, isPending: isUpdatingSecrets } = useUpdateSecretBatch({
     options: { onSuccess: undefined }
@@ -324,17 +326,18 @@ export const ActionBar = ({
 
   const handleSecretBulkDelete = async () => {
     const bulkDeletedSecrets = Object.values(selectedSecrets);
-    await deleteBatchSecretV3({
+    // the bulk path archives too — "delete" means the same thing however many are selected
+    await archiveSecrets({
       secretPath,
       projectId,
       environment,
-      secrets: bulkDeletedSecrets.map(({ key }) => ({ secretKey: key, type: SecretType.Shared }))
+      secretNames: bulkDeletedSecrets.map(({ key }) => key)
     });
     resetSelectedSecret();
     handlePopUpClose("bulkDeleteSecrets");
     createNotification({
       type: "success",
-      text: "Successfully deleted secrets"
+      text: "Successfully moved secrets to the trash"
     });
   };
 
@@ -1217,6 +1220,16 @@ export const ActionBar = ({
           </ProjectPermissionCan>
         </div>
       </div>
+      <div className="mt-2 flex items-center">
+        <Button
+          variant="outline_bg"
+          leftIcon={<FontAwesomeIcon icon={faTrash} />}
+          onClick={() => handlePopUpOpen("archivedSecrets")}
+          size="xs"
+        >
+          Trash
+        </Button>
+      </div>
       {/* all the side triggers from actions like modals etc */}
       <CreateSecretImportForm
         environment={environment}
@@ -1273,6 +1286,13 @@ export const ActionBar = ({
             />
           )
         }
+      />
+      <ArchivedSecretsModal
+        isOpen={popUp.archivedSecrets.isOpen}
+        onOpenChange={(isOpen) => handlePopUpToggle("archivedSecrets", isOpen)}
+        projectId={projectId}
+        environment={environment}
+        secretPath={secretPath}
       />
       <MoveSecretsModal
         popUp={popUp}
