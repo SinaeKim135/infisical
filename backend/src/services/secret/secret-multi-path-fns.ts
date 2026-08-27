@@ -86,15 +86,6 @@ export const mergeSecretsByPathPrecedence = <T extends TMergeableSecret>(
 
       const existing = mergedByUnit.get(unitKey);
 
-      // A later path only wins with a value the caller can actually read. When the winning
-      // entry is masked, the readable entry from the earlier path stays — otherwise a key the
-      // caller has permission to read would drop out of the result because a path they cannot
-      // read happens to define it too.
-      if (existing && secret.secretValueHidden && !existing.secret.secretValueHidden) {
-        // eslint-disable-next-line no-continue
-        continue;
-      }
-
       if (existing) {
         const shadowed = shadowedPathsByUnit.get(unitKey) ?? [];
         shadowed.push(existing.path);
@@ -123,7 +114,9 @@ export const mergeSecretsByPathPrecedence = <T extends TMergeableSecret>(
   }
 
   return {
-    secrets: [...mergedByUnit.values()].map((el) => el.secret),
+    // a masked value must never be written into a .env, so masked entries are dropped from
+    // the merged result
+    secrets: [...mergedByUnit.values()].map((el) => el.secret).filter((el) => !el.secretValueHidden),
     overrides
   };
 };
