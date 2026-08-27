@@ -73,6 +73,7 @@ import {
   interpolateSecrets,
   recursivelyGetSecretPaths
 } from "./secret-fns";
+import { mergeSecretsByPathPrecedence, normalizeSecretPaths } from "./secret-multi-path-fns";
 import { TSecretQueueFactory } from "./secret-queue";
 import {
   SecretOperations,
@@ -94,6 +95,7 @@ import {
   TGetSecretAccessListDTO,
   TGetSecretsDTO,
   TGetSecretsRawDTO,
+  TGetSecretsRawMultiPathDTO,
   TGetSecretVersionsDTO,
   TMoveSecretsDTO,
   TRedactSecretVersionValueDTO,
@@ -1263,6 +1265,47 @@ export const secretServiceFactory = ({
     });
 
     return secrets;
+  };
+
+  const getSecretsRawMultiPath = async ({ paths, limit, offset, ifNoneMatch, ...dto }: TGetSecretsRawMultiPathDTO) => {
+    const normalizedPaths = normalizeSecretPaths(paths);
+
+    // every path goes through the same read, so the rows have one shape at runtime; the
+    // declared return type is a union only because the single-path reader also carries the
+    // not-modified sentinel, which is handled below before anything reaches the merge
+    type TMergeInput = Extract<Awaited<ReturnType<typeof getSecretsRaw>>["secrets"][number], { secretKey: string }>;
+    type TImportInput = NonNullable<Awaited<ReturnType<typeof getSecretsRaw>>["imports"]>[number];
+
+    // Each path is fetched through getSecretsRaw so per-path permission checks,
+    // import resolution, reference expansion and personal-override handling stay
+    // identical to single-path reads. A path the caller cannot read masks its values
+    // rather than failing the whole request — one unreadable path out of several
+    // should not make the call unusable.
+    const perPathResults = await Promise.all(
+      normalizedPaths.map(async (path) => {
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        const result = await getSecretsRaw({
+          ...dto,
+          path,
+          throwOnMissingReadValuePermission: false,
+          ifNoneMatch,
+          limit,
+          offset
+        });
+
+        return { path, secrets: result.secrets as TMergeInput[], imports: (result.imports || []) as TImportInput[] };
+      })
+    );
+
+    const { secrets, overrides } = mergeSecretsByPathPrecedence(perPathResults);
+    const imports = perPathResults.flatMap((el) => el.imports);
+
+    return {
+      secrets,
+      imports,
+      totalCount: secrets.length,
+      merge: { paths: normalizedPaths, overrides }
+    };
   };
 
   const getSecretReferenceTree = async (dto: TGetSecretReferencesTreeDTO) => {
@@ -3631,6 +3674,7 @@ export const secretServiceFactory = ({
     getSecretsCount,
     getSecretsCountMultiEnv,
     getSecretsRawMultiEnv,
+    getSecretsRawMultiPath,
     getSecretReferenceTree,
     getSecretsRawByFolderMappings,
     getSecretAccessList,
