@@ -1,0 +1,237 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\":\"skyramp-nest-src\",\"slug\":\"skyramp-nest-src\",\"type\":\"secret-manager\"}",
+    "ResponseBody": "{\"project\":{\"id\":\"3c9f2a81-4d6b-4e57-9a03-15e8bc27f4a6\",\"name\":\"skyramp-nest-src\",\"slug\":\"skyramp-nest-src\",\"type\":\"secret-manager\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:18.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\":\"skyramp-nest-consumer\",\"slug\":\"skyramp-nest-consumer\",\"type\":\"secret-manager\"}",
+    "ResponseBody": "{\"project\":{\"id\":\"6e1b48d3-9f27-4c85-b0d4-38a5c7e29b17\",\"name\":\"skyramp-nest-consumer\",\"slug\":\"skyramp-nest-consumer\",\"type\":\"secret-manager\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:19.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\":\"3c9f2a81-4d6b-4e57-9a03-15e8bc27f4a6\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"leaf-value\"}",
+    "ResponseBody": "{\"secret\":{\"secretKey\":\"LEAF\",\"secretValue\":\"leaf-value\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/LEAF",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:20.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\":\"3c9f2a81-4d6b-4e57-9a03-15e8bc27f4a6\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"${LEAF}\"}",
+    "ResponseBody": "{\"secret\":{\"secretKey\":\"API_KEY\",\"secretValue\":\"${LEAF}\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/API_KEY",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:21.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectId\":\"6e1b48d3-9f27-4c85-b0d4-38a5c7e29b17\",\"environment\":\"dev\",\"secretPath\":\"/\",\"secretValue\":\"${skyramp-nest-src::dev.API_KEY}\"}",
+    "ResponseBody": "{\"secret\":{\"secretKey\":\"API_KEY\",\"secretValue\":\"${skyramp-nest-src::dev.API_KEY}\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v4/secrets/API_KEY",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:22.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secrets\":[{\"secretKey\":\"API_KEY\",\"secretValue\":\"leaf-value\"}]}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v4/secrets",
+    "QueryParams": {
+      "projectId": [
+        "6e1b48d3-9f27-4c85-b0d4-38a5c7e29b17"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ],
+      "viewSecretValue": [
+        "true"
+      ],
+      "includeImports": [
+        "false"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:23.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"project\":{\"id\":\"3c9f2a81-4d6b-4e57-9a03-15e8bc27f4a6\",\"slug\":\"skyramp-nest-src\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/projects/3c9f2a81-4d6b-4e57-9a03-15e8bc27f4a6",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:24.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"project\":{\"id\":\"6e1b48d3-9f27-4c85-b0d4-38a5c7e29b17\",\"slug\":\"skyramp-nest-consumer\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/projects/6e1b48d3-9f27-4c85-b0d4-38a5c7e29b17",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T15:02:25.993Z",
+    "Scheme": "http",
+    "scenarioName": "cross_project_reference_nested_expansion_same_coordinates"
+  }
+]
