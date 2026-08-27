@@ -96,11 +96,13 @@ import {
   TDeleteSecretDTO,
   TGetAccessibleSecretsDTO,
   TGetASecretDTO,
+  TGetMyPersonalOverridesDTO,
   TGetSecretReferencesTreeDTO,
   TGetSecretsDTO,
   TGetSecretsRawByFolderMappingsDTO,
   TGetSecretVersionsDTO,
   TMoveSecretsDTO,
+  TResetPersonalOverridesDTO,
   TSecretReference,
   TUpdateManySecretDTO,
   TUpdateSecretDTO
@@ -3356,6 +3358,84 @@ export const secretV2BridgeServiceFactory = ({
     };
   };
 
+  // "My overrides" ----------------------------------------------------------------------
+  // An override is a row of its own, owned by one user and visible only to them. Today the
+  // only trace of one is a corner icon on the Overview grid, so finding your own means opening
+  // folders one at a time and clearing them is one-at-a-time as well.
+
+  const getMyPersonalOverrides = async ({
+    projectId,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod
+  }: TGetMyPersonalOverridesDTO) => {
+    await permissionService.getProjectPermission({
+      actor,
+      actorId,
+      projectId,
+      actorAuthMethod,
+      actorOrgId,
+      actionProjectType: ActionProjectType.SecretManager
+    });
+
+    // only a user owns overrides — a machine identity cannot create one, so it has none to list
+    if (actor !== ActorType.USER) {
+      return { overrides: [] };
+    }
+
+    const rows = await secretDAL.findPersonalOverridesByProject(projectId);
+    if (!rows.length) return { overrides: [] };
+
+    const folderPaths = await folderDAL.findSecretPathByFolderIds(
+      projectId,
+      rows.map((el) => el.folderId)
+    );
+    const pathByFolderId = Object.fromEntries(folderPaths.filter(Boolean).map((el) => [el!.id, el!.path]));
+
+    return {
+      overrides: rows.map((el) => ({
+        id: el.id,
+        secretKey: el.secretKey,
+        environment: el.environment,
+        environmentName: el.environmentName,
+        secretPath: pathByFolderId[el.folderId] ?? "/",
+        divergedAt: el.updatedAt
+      }))
+    };
+  };
+
+  const resetPersonalOverrides = async ({
+    projectId,
+    environment,
+    secretPath,
+    secretKeys,
+    actor,
+    actorId,
+    actorOrgId,
+    actorAuthMethod
+  }: TResetPersonalOverridesDTO) => {
+    if (actor !== ActorType.USER) {
+      throw new BadRequestError({ message: "Only a user can reset personal overrides" });
+    }
+
+    // Resetting an override is deleting the personal row so the shared value shows through
+    // again, which is what the existing batch delete already does — reuse it so permission
+    // checks, versioning and commit history stay identical to a normal delete.
+    const deletedSecrets = await deleteManySecret({
+      projectId,
+      environment,
+      secretPath,
+      actor,
+      actorId,
+      actorOrgId,
+      actorAuthMethod,
+      secrets: secretKeys.map((secretKey: string) => ({ secretKey, type: SecretType.Shared }))
+    });
+
+    return { resetCount: deletedSecrets.length, secretKeys };
+  };
+
   const getSecretReferenceTree = async ({
     environment,
     secretPath,
@@ -3990,6 +4070,8 @@ export const secretV2BridgeServiceFactory = ({
   };
 
   return {
+    getMyPersonalOverrides,
+    resetPersonalOverrides,
     createSecret,
     deleteSecret,
     updateSecret,

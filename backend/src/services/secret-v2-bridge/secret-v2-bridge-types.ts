@@ -413,3 +413,14 @@ export type TUpdateLinkedSecretReferencesDTO = {
   oldSecretKey: string;
   newSecretKey: string;
 };
+
+export type TGetMyPersonalOverridesDTO = {
+  projectId: string;
+} & Omit<TProjectPermission, "projectId">;
+
+export type TResetPersonalOverridesDTO = {
+  projectId: string;
+  environment: string;
+  secretPath: string;
+  secretKeys: string[];
+} & Omit<TProjectPermission, "projectId">;
