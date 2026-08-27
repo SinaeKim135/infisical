@@ -1291,15 +1291,6 @@ export const secretServiceFactory = ({
           ifNoneMatch
         });
 
-        // A per-path ETag match only says that path is unchanged; it says nothing about the
-        // merged result, and the sentinel it returns carries an empty body rather than the
-        // path's contents. Read it again without the validator so the merge sees real rows.
-        if ("notModified" in result && result.notModified) {
-          // eslint-disable-next-line @typescript-eslint/no-use-before-define
-          const full = await getSecretsRaw({ ...dto, path, throwOnMissingReadValuePermission: false });
-          return { path, secrets: full.secrets as TMergeInput[], imports: (full.imports || []) as TImportInput[] };
-        }
-
         return { path, secrets: result.secrets as TMergeInput[], imports: (result.imports || []) as TImportInput[] };
       })
     );
