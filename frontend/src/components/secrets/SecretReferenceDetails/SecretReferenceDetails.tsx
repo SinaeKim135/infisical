@@ -55,7 +55,9 @@ type TreeNodeData = {
 };
 
 const createNodeId = (node: TSecretReferenceTraceNode, parentId?: string): string => {
-  const baseId = `${node.environment}:${node.secretPath}:${node.key}`;
+  // projectSlug is included so cross-project references with the same env/path/key as a
+  // same-project reference don't collide into the same tree node.
+  const baseId = `${node.projectSlug ?? ""}:${node.environment}:${node.secretPath}:${node.key}`;
   return parentId ? `${parentId}>${baseId}` : baseId;
 };
 
@@ -68,12 +70,13 @@ const convertToTreeItems = (
   const items: Record<TreeItemIndex, TreeItem<TreeNodeData>> = {};
   const nodeId = createNodeId(node, parentId);
 
-  const circularKey = `${node.environment}:${node.secretPath}:${node.key}`;
+  const circularKey = `${node.projectSlug ?? ""}:${node.environment}:${node.secretPath}:${node.key}`;
   const isCircular = visitedPath.has(circularKey);
   const newVisitedPath = new Set([...visitedPath, circularKey]);
 
+  const projectPrefix = node.projectSlug ? `${node.projectSlug}::` : "";
   const displayName = parentId
-    ? `${node.environment}${node.secretPath === "/" ? "" : node.secretPath.split("/").join(".")}.${node.key}`
+    ? `${projectPrefix}${node.environment}${node.secretPath === "/" ? "" : node.secretPath.split("/").join(".")}.${node.key}`
     : secretKey;
 
   const childIds: TreeItemIndex[] = [];
@@ -117,7 +120,7 @@ const hasCircularReferences = (
   node: TSecretReferenceTraceNode,
   visitedPath: Set<string> = new Set()
 ): boolean => {
-  const nodeId = `${node.environment}:${node.secretPath}:${node.key}`;
+  const nodeId = `${node.projectSlug ?? ""}:${node.environment}:${node.secretPath}:${node.key}`;
 
   if (visitedPath.has(nodeId)) {
     return true;

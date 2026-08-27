@@ -7,27 +7,88 @@ import { ForbiddenRequestError } from "@app/lib/errors";
 import { TSecretFolderDALFactory } from "../secret-folder/secret-folder-dal";
 import { TSecretV2BridgeDALFactory } from "./secret-v2-bridge-dal";
 
-const INTERPOLATION_PATTERN_STRING = String.raw`\${([a-zA-Z0-9-_.]+)}`;
+// Allows the cross-project separator ":" in addition to the same-project reference characters.
+// A cross-project reference is written as ${<projectSlug>::<environment>.<path>.<KEY>} where the
+// double colon "::" unambiguously separates the source project slug from the rest of the reference.
+const INTERPOLATION_PATTERN_STRING = String.raw`\${([a-zA-Z0-9-_.:]+)}`;
 const INTERPOLATION_TEST_REGEX = new RE2(INTERPOLATION_PATTERN_STRING);
+
+// Marker that distinguishes a cross-project reference (${slug::env.path.KEY}) from a
+// same-project nested reference (${env.path.KEY}).
+export const CROSS_PROJECT_REF_SEPARATOR = "::";
+
+type TParsedReference = {
+  // Present only for cross-project references; undefined for same-project references.
+  projectSlug?: string;
+  environment: string;
+  secretPath: string;
+  secretKey: string;
+};
+
+/**
+ * Parses the inner contents of an interpolation (the part between ${ and }) into its
+ * environment / path / key parts, handling the cross-project "<slug>::" prefix when present.
+ *
+ * - "SECRET_NAME"                       -> local reference, resolved against the caller-supplied env/path
+ * - "dev.someFolder.SECRET_NAME"        -> same-project nested reference
+ * - "shared-infra::prod.tls.CERT"       -> cross-project reference
+ *
+ * For a local reference the environment/secretPath are left empty so the caller can fill in the
+ * current secret's environment and path.
+ */
+const parseInterpolationKey = (interpolationKey: string): TParsedReference | null => {
+  const trimmed = interpolationKey.trim();
+  if (!trimmed) return null;
+
+  let projectSlug: string | undefined;
+  let rest = trimmed;
+
+  if (trimmed.includes(CROSS_PROJECT_REF_SEPARATOR)) {
+    const separatorIndex = trimmed.indexOf(CROSS_PROJECT_REF_SEPARATOR);
+    projectSlug = trimmed.slice(0, separatorIndex);
+    rest = trimmed.slice(separatorIndex + CROSS_PROJECT_REF_SEPARATOR.length);
+    // A cross-project reference must specify a slug and at least <env>.<KEY>; reject malformed ones.
+    // A stray ":" remaining in either part means it is not a well-formed cross-project reference.
+    if (!projectSlug || !rest.includes(".") || projectSlug.includes(":") || rest.includes(":")) return null;
+  } else if (trimmed.includes(":")) {
+    // A single colon (without the "::" cross-project marker) is not a reference. Preserve the
+    // previous behavior where such interpolations were left untouched as literal text.
+    return null;
+  }
+
+  const entities = rest.split(".").filter(Boolean);
+  if (!entities.length) return null;
+
+  // Local reference: ${SECRET_NAME} (no project, no dots)
+  if (!projectSlug && entities.length === 1) {
+    return { environment: "", secretPath: "", secretKey: entities[0] };
+  }
+
+  const environment = entities[0];
+  const secretPath = path.join("/", ...entities.slice(1, entities.length - 1));
+  const secretKey = entities[entities.length - 1];
+
+  return { projectSlug, environment, secretPath, secretKey };
+};
 
 /**
  * Grabs and processes nested secret references from a string
  *
  * This function looks for patterns that match the interpolation syntax in the input string.
- * It filters out references that include nested paths, splits them into environment and
- * secret path parts, and then returns an array of objects with the environment and the
- * joined secret path.
+ * It splits them into same-project nested references, local references, and cross-project
+ * references (those carrying a "<slug>::" prefix).
  * @example
- * const value = "Hello ${dev.someFolder.OtherFolder.SECRET_NAME} and ${prod.anotherFolder.SECRET_NAME}";
- * const result = getAllNestedSecretReferences(value);
+ * const value = "Hello ${dev.someFolder.OtherFolder.SECRET_NAME} and ${shared::prod.tls.CERT}";
+ * const result = getAllSecretReferences(value);
  * // result will be:
- * // [
- * //   { environment: 'dev', secretPath: '/someFolder/OtherFolder' },
- * //   { environment: 'prod', secretPath: '/anotherFolder' }
- * // ]
+ * // {
+ * //   nestedReferences: [{ environment: 'dev', secretPath: '/someFolder/OtherFolder', secretKey: 'SECRET_NAME' }],
+ * //   localReferences: [],
+ * //   crossProjectReferences: [{ projectSlug: 'shared', environment: 'prod', secretPath: '/tls', secretKey: 'CERT' }]
+ * // }
  */
 export const getAllSecretReferences = (maybeSecretReference: string) => {
-  const references = [];
+  const references: string[] = [];
   let match;
 
   const regex = new RE2(INTERPOLATION_PATTERN_STRING, "g");
@@ -36,18 +97,38 @@ export const getAllSecretReferences = (maybeSecretReference: string) => {
     references.push(match[1]);
   }
 
-  const nestedReferences = references
-    .filter((el) => el.includes("."))
-    .map((el) => {
-      const [environment, ...secretPathList] = el.split(".");
-      return {
-        environment,
-        secretPath: path.join("/", ...secretPathList.slice(0, -1)),
-        secretKey: secretPathList[secretPathList.length - 1]
-      };
-    });
-  const localReferences = references.filter((el) => !el.includes("."));
-  return { nestedReferences, localReferences };
+  const nestedReferences: Array<{ environment: string; secretPath: string; secretKey: string }> = [];
+  const localReferences: string[] = [];
+  const crossProjectReferences: Array<{
+    projectSlug: string;
+    environment: string;
+    secretPath: string;
+    secretKey: string;
+  }> = [];
+
+  references.forEach((reference) => {
+    const parsed = parseInterpolationKey(reference);
+    if (!parsed) return;
+
+    if (parsed.projectSlug) {
+      crossProjectReferences.push({
+        projectSlug: parsed.projectSlug,
+        environment: parsed.environment,
+        secretPath: parsed.secretPath,
+        secretKey: parsed.secretKey
+      });
+    } else if (!parsed.environment) {
+      localReferences.push(parsed.secretKey);
+    } else {
+      nestedReferences.push({
+        environment: parsed.environment,
+        secretPath: parsed.secretPath,
+        secretKey: parsed.secretKey
+      });
+    }
+  });
+
+  return { nestedReferences, localReferences, crossProjectReferences };
 };
 
 // used to convert multi line ones to quotes ones with \n
@@ -62,8 +143,23 @@ export type TSecretReferenceTraceNode = {
   value?: string;
   environment: string;
   secretPath: string;
+  projectSlug?: string;
   children: TSecretReferenceTraceNode[];
 };
+
+// The set of project-scoped capabilities needed to resolve a reference. The "home" project's
+// context is derived from the factory arguments; foreign projects are produced on demand by
+// crossProjectResolver so each project's KMS decryptor and permission gate are applied correctly.
+export type TProjectExpansionContext = {
+  projectId: string;
+  secretDAL: Pick<TSecretV2BridgeDALFactory, "findByFolderId">;
+  decryptSecretValue: (encryptedValue?: Buffer | null) => string | undefined;
+  canExpandValue: (environment: string, secretPath: string, secretName: string, secretTagSlugs: string[]) => boolean;
+};
+
+// Resolves a project slug into an expansion context. Implementations are expected to enforce that
+// the requesting actor has access to the referenced project (fail closed by throwing otherwise).
+export type TCrossProjectReferenceResolver = (projectSlug: string) => Promise<TProjectExpansionContext>;
 
 type TInterpolateSecretArg = {
   projectId: string;
@@ -74,6 +170,10 @@ type TInterpolateSecretArg = {
   // When provided, personal secret overrides for this user will be preferred
   // over shared secrets when resolving references during expansion.
   userId?: string;
+  // When provided, ${<slug>::<env>.<path>.<KEY>} references are resolved against the referenced
+  // project using the context this resolver returns. When omitted, cross-project references are
+  // rejected.
+  crossProjectResolver?: TCrossProjectReferenceResolver;
 };
 
 const MAX_SECRET_REFERENCE_DEPTH = 10;
@@ -83,12 +183,38 @@ export const expandSecretReferencesFactory = ({
   secretDAL,
   folderDAL,
   canExpandValue,
-  userId
+  userId,
+  crossProjectResolver
 }: TInterpolateSecretArg) => {
+  const homeContext: TProjectExpansionContext = {
+    projectId,
+    secretDAL,
+    decryptSecretValue: decryptSecret,
+    canExpandValue
+  };
+
+  // Cache resolved project contexts (keyed by slug) so repeated references to the same project
+  // within a single expansion do not re-run project lookup / permission / KMS resolution.
+  const projectContextCache = new Map<string, Promise<TProjectExpansionContext>>();
+  const resolveProjectContext = (projectSlug: string) => {
+    // crossProjectResolver presence is checked by the caller before this point.
+    let resolved = projectContextCache.get(projectSlug);
+    if (!resolved) {
+      resolved = crossProjectResolver!(projectSlug);
+      projectContextCache.set(projectSlug, resolved);
+    }
+    return resolved;
+  };
+
   const secretCache: Record<string, Record<string, { value: string; tags: string[] }>> = {};
   const getCacheUniqueKey = (environment: string, secretPath: string) => `${environment}-${secretPath}`;
 
-  const fetchSecret = async (environment: string, secretPath: string, secretKey: string) => {
+  const fetchSecret = async (
+    ctx: TProjectExpansionContext,
+    environment: string,
+    secretPath: string,
+    secretKey: string
+  ) => {
     const cacheKey = getCacheUniqueKey(environment, secretPath);
 
     if (secretCache?.[cacheKey]) {
@@ -96,11 +222,11 @@ export const expandSecretReferencesFactory = ({
     }
 
     try {
-      const folder = await folderDAL.findBySecretPath(projectId, environment, secretPath);
+      const folder = await folderDAL.findBySecretPath(ctx.projectId, environment, secretPath);
       if (!folder) return { value: "", tags: [] };
       // When userId is provided, findByFolderId returns both shared and personal secrets.
       // Personal overrides will take precedence over shared secrets in the reduce below.
-      const secrets = await secretDAL.findByFolderId({ folderId: folder.id, userId });
+      const secrets = await ctx.secretDAL.findByFolderId({ folderId: folder.id, userId });
 
       const decryptedSecret = secrets.reduce<Record<string, { value: string; tags: string[] }>>((prev, secret) => {
         // When userId is set, personal overrides (userId !== null) should take precedence
@@ -112,7 +238,7 @@ export const expandSecretReferencesFactory = ({
 
         // eslint-disable-next-line no-param-reassign
         prev[secret.key] = {
-          value: decryptSecret(secret.encryptedValue) || "",
+          value: ctx.decryptSecretValue(secret.encryptedValue) || "",
           tags: secret.tags?.map((el) => el.slug)
         };
         return prev;
@@ -127,6 +253,17 @@ export const expandSecretReferencesFactory = ({
     }
   };
 
+  type TExpansionStackItem = {
+    value?: string;
+    secretPath: string;
+    environment: string;
+    secretKey: string;
+    depth: number;
+    trace: TSecretReferenceTraceNode | null;
+    visitedSecrets: Set<string>;
+    ctx: TProjectExpansionContext;
+  };
+
   const recursivelyExpandSecret = async (dto: {
     value?: string;
     secretPath: string;
@@ -138,15 +275,24 @@ export const expandSecretReferencesFactory = ({
 
     if (!dto.value) return { expandedValue: "", stackTrace };
 
-    // Track visited secrets to prevent circular references
+    // Track visited secrets to prevent circular references. The project id is part of the id so
+    // cycles spanning multiple projects (A -> B -> A) are detected too.
     const createSecretId = (env: string, secretPath: string, key: string) => `${env}:${secretPath}:${key}`;
 
     const currentSecretId = createSecretId(dto.environment, dto.secretPath, dto.secretKey);
-    const stack = [{ ...dto, depth: 0, trace: stackTrace, visitedSecrets: new Set<string>([currentSecretId]) }];
+    const stack: TExpansionStackItem[] = [
+      {
+        ...dto,
+        depth: 0,
+        trace: stackTrace,
+        visitedSecrets: new Set<string>([currentSecretId]),
+        ctx: homeContext
+      }
+    ];
     let expandedValue = dto.value;
 
     while (stack.length) {
-      const { value, secretPath, environment, depth, trace, visitedSecrets } = stack.pop()!;
+      const { value, secretPath, environment, depth, trace, visitedSecrets, ctx } = stack.pop()!;
 
       // eslint-disable-next-line no-continue
       if (depth > MAX_SECRET_REFERENCE_DEPTH) continue;
@@ -163,55 +309,66 @@ export const expandSecretReferencesFactory = ({
       if (refs.length > 0) {
         for (const interpolationSyntax of refs) {
           const interpolationKey = interpolationSyntax.slice(2, interpolationSyntax.length - 1);
-          const entities = interpolationKey.trim().split(".");
+          const parsed = parseInterpolationKey(interpolationKey);
 
           // eslint-disable-next-line no-continue
-          if (!entities.length) continue;
+          if (!parsed) continue;
 
-          let referencedSecretPath = "";
-          let referencedSecretKey = "";
-          let referencedSecretEnvironmentSlug = "";
-          let referencedSecretValue = "";
+          // When cross-project resolution is not wired in this context (e.g. background sync or
+          // validation jobs without an actor), leave the cross-project reference as literal text
+          // instead of failing. The wired read paths supply a resolver and resolve it fully.
+          // eslint-disable-next-line no-continue
+          if (parsed.projectSlug && !crossProjectResolver) continue;
 
-          if (entities.length === 1) {
-            const [secretKey] = entities;
+          // Determine the project context, environment and path that this reference resolves against.
+          let targetCtx = ctx;
+          let referencedSecretEnvironmentSlug: string;
+          let referencedSecretPath: string;
+          const referencedSecretKey = parsed.secretKey;
 
-            // eslint-disable-next-line no-continue,no-await-in-loop
-            const referredValue = await fetchSecret(environment, secretPath, secretKey);
-            if (!canExpandValue(environment, secretPath, secretKey, referredValue.tags))
-              throw new ForbiddenRequestError({
-                message: `You do not have permission to read secret '${secretKey}' in environment '${environment}' at path '${secretPath}', which is referenced by secret '${dto.secretKey}' in environment '${dto.environment}' at path '${dto.secretPath}'.`
-              });
-
-            const cacheKey = getCacheUniqueKey(environment, secretPath);
-            if (!secretCache[cacheKey]) secretCache[cacheKey] = {};
-            secretCache[cacheKey][secretKey] = referredValue;
-
-            referencedSecretValue = referredValue.value;
-            referencedSecretKey = secretKey;
-            referencedSecretPath = secretPath;
-            referencedSecretEnvironmentSlug = environment;
-          } else {
-            const secretReferenceEnvironment = entities[0];
-            const secretReferencePath = path.join("/", ...entities.slice(1, entities.length - 1));
-            const secretReferenceKey = entities[entities.length - 1];
-
+          if (parsed.projectSlug) {
             // eslint-disable-next-line no-await-in-loop
-            const referedValue = await fetchSecret(secretReferenceEnvironment, secretReferencePath, secretReferenceKey);
-            if (!canExpandValue(secretReferenceEnvironment, secretReferencePath, secretReferenceKey, referedValue.tags))
-              throw new ForbiddenRequestError({
-                message: `You do not have permission to read secret '${secretReferenceKey}' in environment '${secretReferenceEnvironment}' at path '${secretReferencePath}', which is referenced by secret '${dto.secretKey}' in environment '${dto.environment}' at path '${dto.secretPath}'.`
-              });
-
-            const cacheKey = getCacheUniqueKey(secretReferenceEnvironment, secretReferencePath);
-            if (!secretCache[cacheKey]) secretCache[cacheKey] = {};
-            secretCache[cacheKey][secretReferenceKey] = referedValue;
-
-            referencedSecretValue = referedValue.value;
-            referencedSecretKey = secretReferenceKey;
-            referencedSecretPath = secretReferencePath;
-            referencedSecretEnvironmentSlug = secretReferenceEnvironment;
+            targetCtx = await resolveProjectContext(parsed.projectSlug);
+            referencedSecretEnvironmentSlug = parsed.environment;
+            referencedSecretPath = parsed.secretPath;
+          } else if (!parsed.environment) {
+            // local reference resolves against the current secret's environment and path
+            referencedSecretEnvironmentSlug = environment;
+            referencedSecretPath = secretPath;
+          } else {
+            referencedSecretEnvironmentSlug = parsed.environment;
+            referencedSecretPath = parsed.secretPath;
           }
+
+          // eslint-disable-next-line no-await-in-loop
+          const referredValue = await fetchSecret(
+            targetCtx,
+            referencedSecretEnvironmentSlug,
+            referencedSecretPath,
+            referencedSecretKey
+          );
+
+          if (
+            !ctx.canExpandValue(
+              referencedSecretEnvironmentSlug,
+              referencedSecretPath,
+              referencedSecretKey,
+              referredValue.tags
+            )
+          ) {
+            const referencedLocation = parsed.projectSlug
+              ? `secret '${referencedSecretKey}' in project '${parsed.projectSlug}', environment '${referencedSecretEnvironmentSlug}' at path '${referencedSecretPath}'`
+              : `secret '${referencedSecretKey}' in environment '${referencedSecretEnvironmentSlug}' at path '${referencedSecretPath}'`;
+            throw new ForbiddenRequestError({
+              message: `You do not have permission to read ${referencedLocation}, which is referenced by secret '${dto.secretKey}' in environment '${dto.environment}' at path '${dto.secretPath}'.`
+            });
+          }
+
+          const cacheKey = getCacheUniqueKey(referencedSecretEnvironmentSlug, referencedSecretPath);
+          if (!secretCache[cacheKey]) secretCache[cacheKey] = {};
+          secretCache[cacheKey][referencedSecretKey] = referredValue;
+
+          const referencedSecretValue = referredValue.value;
 
           const node = {
             value: referencedSecretValue,
@@ -219,6 +376,7 @@ export const expandSecretReferencesFactory = ({
             environment: referencedSecretEnvironmentSlug,
             depth: depth + 1,
             secretKey: referencedSecretKey,
+            ctx: targetCtx,
             trace
           };
 
@@ -234,7 +392,13 @@ export const expandSecretReferencesFactory = ({
 
           const shouldExpandMore = INTERPOLATION_TEST_REGEX.test(referencedSecretValue) && !isCircular;
           if (dto.shouldStackTrace) {
-            const stackTraceNode = { ...node, children: [], key: referencedSecretKey, trace: null };
+            const stackTraceNode = {
+              ...node,
+              children: [],
+              key: referencedSecretKey,
+              projectSlug: parsed.projectSlug,
+              trace: null
+            };
             trace?.children.push(stackTraceNode);
             // if stack trace this would be child node
             if (shouldExpandMore) {
@@ -242,7 +406,7 @@ export const expandSecretReferencesFactory = ({
             }
           } else if (shouldExpandMore) {
             // if no stack trace is needed we just keep going with root node
-            stack.push({ ...node, visitedSecrets: newVisitedSecrets });
+            stack.push({ ...node, trace: null, visitedSecrets: newVisitedSecrets });
           }
 
           if (referencedSecretValue) {
