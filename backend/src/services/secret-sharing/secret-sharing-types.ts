@@ -24,6 +24,7 @@ export type TSharedSecretPermission = {
   password?: string;
   emails?: string[];
   allowExternalEmails?: boolean;
+  notifyOnAccess?: boolean;
 };
 
 export type TCreatePublicSharedSecretDTO = {
@@ -32,6 +33,12 @@ export type TCreatePublicSharedSecretDTO = {
   maxViews?: number;
   password?: string;
   accessType: SecretSharingAccessType;
+  notifyOnAccess?: boolean;
+};
+
+export type TAccessRequestContext = {
+  ipAddress?: string;
+  userAgent?: string;
 };
 
 export type TGetActiveSharedSecretByIdDTO = {
@@ -39,7 +46,7 @@ export type TGetActiveSharedSecretByIdDTO = {
   orgId?: string;
   actorId?: string;
   password?: string;
-};
+} & TAccessRequestContext;
 
 export type TValidateActiveSharedSecretDTO = TGetActiveSharedSecretByIdDTO & {
   password: string;
@@ -65,6 +72,12 @@ export type TSetSecretRequestValueDTO = {
   id: string;
   secretValue: string;
 } & Omit<TOrgPermission, "orgId">;
+
+export type TGetSharedSecretAccessLogsDTO = {
+  sharedSecretId: string;
+  limit: number;
+  offset: number;
+} & TSharedSecretPermission;
 
 export type TDeleteSharedSecretDTO = {
   sharedSecretId: string;

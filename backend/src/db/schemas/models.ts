@@ -77,6 +77,7 @@ export enum TableName {
   Secret = "secrets",
   SecretReference = "secret_references",
   SecretSharing = "secret_sharing",
+  SecretShareAccessLog = "secret_share_access_logs",
   OrganizationAsset = "organization_assets",
   SecretBlindIndex = "secret_blind_indexes",
   SecretVersion = "secret_versions",
