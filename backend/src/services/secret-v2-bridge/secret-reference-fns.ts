@@ -277,10 +277,9 @@ export const expandSecretReferencesFactory = ({
 
     // Track visited secrets to prevent circular references. The project id is part of the id so
     // cycles spanning multiple projects (A -> B -> A) are detected too.
-    const createSecretId = (ctxProjectId: string, env: string, secretPath: string, key: string) =>
-      `${ctxProjectId}:${env}:${secretPath}:${key}`;
+    const createSecretId = (env: string, secretPath: string, key: string) => `${env}:${secretPath}:${key}`;
 
-    const currentSecretId = createSecretId(homeContext.projectId, dto.environment, dto.secretPath, dto.secretKey);
+    const currentSecretId = createSecretId(dto.environment, dto.secretPath, dto.secretKey);
     const stack: TExpansionStackItem[] = [
       {
         ...dto,
@@ -381,9 +380,8 @@ export const expandSecretReferencesFactory = ({
             trace
           };
 
-          // Check for circular reference (project-aware id)
+          // Check for circular reference
           const referencedSecretId = createSecretId(
-            targetCtx.projectId,
             referencedSecretEnvironmentSlug,
             referencedSecretPath,
             referencedSecretKey
