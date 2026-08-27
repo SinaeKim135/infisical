@@ -13,21 +13,15 @@ import {
   TableHeader,
   TableRow
 } from "@app/components/v3";
-import { useGetSharedSecrets } from "@app/hooks/api/secretSharing";
+import { TSharedSecret, useGetSharedSecrets } from "@app/hooks/api/secretSharing";
 import { UsePopUpState } from "@app/hooks/usePopUp";
 
 import { ShareSecretsRow } from "./ShareSecretsRow";
 
 type Props = {
   handlePopUpOpen: (
-    popUpName: keyof UsePopUpState<["deleteSharedSecretConfirmation"]>,
-    {
-      name,
-      id
-    }: {
-      name: string;
-      id: string;
-    }
+    popUpName: keyof UsePopUpState<["deleteSharedSecretConfirmation", "editSharedSecret"]>,
+    data: { name: string; id: string } | TSharedSecret
   ) => void;
 };
 

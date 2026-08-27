@@ -14,7 +14,8 @@ import {
   TRevealedSecretRequest,
   TRevealSecretRequestValueRequest,
   TSetSecretRequestValueRequest,
-  TSharedSecret
+  TSharedSecret,
+  TUpdateSharedSecretRequest
 } from "./types";
 
 export const useCreateSharedSecret = () => {
@@ -99,6 +100,21 @@ export const useRevealSecretRequestValue = () => {
     }
   });
 };
+export const useUpdateSharedSecret = () => {
+  const queryClient = useQueryClient();
+  return useMutation<TSharedSecret, { message: string }, TUpdateSharedSecretRequest>({
+    mutationFn: async ({ sharedSecretId, ...inputData }) => {
+      const { data } = await apiRequest.patch<TSharedSecret>(
+        `/api/v1/shared-secrets/${sharedSecretId}`,
+        inputData
+      );
+      return data;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: secretSharingKeys.allSharedSecrets() })
+  });
+};
+
 export const useDeleteSharedSecret = () => {
   const queryClient = useQueryClient();
   return useMutation<TSharedSecret, { message: string }, { sharedSecretId: string }>({

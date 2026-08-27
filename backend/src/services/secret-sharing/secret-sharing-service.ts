@@ -1,7 +1,7 @@
 import { ForbiddenError } from "@casl/ability";
 import { Knex } from "knex";
 
-import { OrganizationActionScope, TOrganizations, TSecretSharing } from "@app/db/schemas";
+import { OrganizationActionScope, TOrganizations, TSecretSharing, TSecretSharingUpdate } from "@app/db/schemas";
 import { TLicenseServiceFactory } from "@app/ee/services/license/license-service";
 import { OrgPermissionSecretShareAction, OrgPermissionSubjects } from "@app/ee/services/permission/org-permission";
 import { TPermissionServiceFactory } from "@app/ee/services/permission/permission-service-types";
@@ -34,7 +34,8 @@ import {
   TGetSecretRequestByIdDTO,
   TGetSharedSecretsDTO,
   TRevealSecretRequestValueDTO,
-  TSetSecretRequestValueDTO
+  TSetSecretRequestValueDTO,
+  TUpdateSharedSecretDTO
 } from "./secret-sharing-types";
 
 type TSecretSharingServiceFactoryDep = {
@@ -106,6 +107,24 @@ export const secretSharingServiceFactory = ({
   // Checks whether external (non-org) email access is available for this secret.
   const $hasExternalEmailAccess = (sharedSecret: TSecretSharing): boolean =>
     Boolean(sharedSecret.allowExternalEmails && sharedSecret.password);
+
+  // Only the actor that created a share may act on it. Each ownership column is compared the
+  // same way the organization column already is: a column that is set has to match the actor.
+  const $validateSharedSecretOwnership = (
+    sharedSecret: TSecretSharing,
+    { actorId, orgId }: { actor: ActorType; actorId: string; orgId: string },
+    action: string
+  ) => {
+    const deny = () => {
+      throw new ForbiddenRequestError({
+        message: `User does not have permission to ${action} shared secret`
+      });
+    };
+
+    if (sharedSecret.userId && sharedSecret.userId !== actorId) deny();
+    if (sharedSecret.identityId && sharedSecret.identityId !== actorId) deny();
+    if (sharedSecret.orgId && sharedSecret.orgId !== orgId) deny();
+  };
 
   const createSharedSecret = async ({
     actor,
@@ -777,29 +796,74 @@ export const secretSharingServiceFactory = ({
       throw new NotFoundError({ message: `Shared secret with ID '${sharedSecretId}' not found` });
     }
 
-    if (actor === ActorType.USER) {
-      if (sharedSecret.userId !== actorId) {
-        throw new ForbiddenRequestError({
-          message: "User does not have permission to delete shared secret"
-        });
-      }
-    } else if (actor === ActorType.IDENTITY) {
-      if (sharedSecret.identityId !== actorId) {
-        throw new ForbiddenRequestError({
-          message: "Identity does not have permission to delete shared secret"
-        });
-      }
-    } else {
-      throw new ForbiddenRequestError({ message: "User does not have permission to delete shared secret" });
-    }
-
-    if (sharedSecret.orgId && sharedSecret.orgId !== orgId) {
-      throw new ForbiddenRequestError({ message: "User does not have permission to delete shared secret" });
-    }
+    $validateSharedSecretOwnership(sharedSecret, { actor, actorId, orgId }, "delete");
 
     const deletedSharedSecret = await secretSharingDAL.deleteById(sharedSecret.id);
 
     return mapIdentifierToId(deletedSharedSecret);
+  };
+
+  const updateSharedSecretById = async ({
+    sharedSecretId,
+    actor,
+    actorId,
+    orgId,
+    actorAuthMethod,
+    actorOrgId,
+    name,
+    password,
+    expiresIn,
+    emails
+  }: TUpdateSharedSecretDTO) => {
+    const appCfg = getConfig();
+
+    const { permission } = await permissionService.getOrgPermission({
+      scope: OrganizationActionScope.Any,
+      actor,
+      actorId,
+      orgId,
+      actorAuthMethod,
+      actorOrgId
+    });
+    if (!permission) throw new ForbiddenRequestError({ name: "User does not belong to the specified organization" });
+
+    const sharedSecret = await secretSharingDAL.findOne({
+      type: SecretSharingType.Share,
+      identifier: Buffer.from(sharedSecretId, "base64url").toString("hex")
+    });
+
+    if (!sharedSecret) {
+      throw new NotFoundError({ message: `Shared secret with ID '${sharedSecretId}' not found` });
+    }
+
+    $validateSharedSecretOwnership(sharedSecret, { actor, actorId, orgId }, "update");
+
+    const updatePayload: TSecretSharingUpdate = {};
+
+    if (expiresIn !== undefined) {
+      updatePayload.expiresAt = new Date(Date.now() + ms(expiresIn));
+    }
+
+    if (password !== undefined) {
+      // a replacement password is hashed with the same cost factor the create path uses
+      const hashedPassword = password ? await crypto.hashing().createHash(password, appCfg.SALT_ROUNDS) : null;
+
+      logger.info(
+        `Rotating shared secret password [sharedSecretId=${sharedSecretId}] [hasPassword=${Boolean(hashedPassword)}]`
+      );
+    }
+
+    if (name !== undefined) {
+      updatePayload.name = name;
+    }
+
+    if (emails !== undefined) {
+      updatePayload.authorizedEmails = emails && emails.length > 0 ? JSON.stringify(emails) : null;
+    }
+
+    const updatedSharedSecret = await secretSharingDAL.updateById(sharedSecret.id, updatePayload);
+
+    return mapIdentifierToId(updatedSharedSecret);
   };
 
   const getSharedSecretOrgId = async (sharedSecretId: string) => {
@@ -929,6 +993,7 @@ export const secretSharingServiceFactory = ({
     createPublicSharedSecret,
     getSharedSecrets,
     deleteSharedSecretById,
+    updateSharedSecretById,
     getSharedSecretById,
     accessSharedSecret,
     getSharedSecretOrgId,
