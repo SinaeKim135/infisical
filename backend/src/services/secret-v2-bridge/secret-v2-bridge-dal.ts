@@ -333,6 +333,33 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
     }
   };
 
+  // Archived rows are excluded from every read path, so the trash needs its own reader.
+  const findArchivedByFolderId = async (folderId: string, tx?: Knex) => {
+    try {
+      const docs = await (tx || db.replicaNode())(TableName.SecretV2)
+        .where({ folderId, type: SecretType.Shared })
+        .whereNotNull(`${TableName.SecretV2}.archivedAt`)
+        .select(selectAllTableCols(TableName.SecretV2))
+        .orderBy("archivedAt", "desc");
+
+      return docs;
+    } catch (error) {
+      throw new DatabaseError({ error, name: "Find archived secrets by folder id" });
+    }
+  };
+
+  const setArchivedAt = async (ids: string[], archivedAt: Date | null, tx?: Knex) => {
+    if (!ids.length) return 0;
+
+    try {
+      const updated = await (tx || db)(TableName.SecretV2).whereIn("id", ids).update({ archivedAt }).returning("id");
+
+      return updated.length;
+    } catch (error) {
+      throw new DatabaseError({ error, name: "Set secret archivedAt" });
+    }
+  };
+
   const deleteMany = async (
     data: Array<{ key: string; type: SecretType }>,
     folderId: string,
@@ -566,6 +593,7 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
       const query = (tx || db.replicaNode())(TableName.SecretV2)
         .whereIn(`${TableName.SecretV2}.folderId`, folderIds)
+        .whereNull(`${TableName.SecretV2}.archivedAt`)
         .where((bd) => {
           if (filters?.search) {
             void bd.whereILike(`${TableName.SecretV2}.key`, `%${filters?.search}%`);
@@ -1176,6 +1204,8 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
   return {
     ...secretOrm,
+    findArchivedByFolderId,
+    setArchivedAt,
     update,
     bulkUpdate,
     bulkUpdateById,

@@ -13,6 +13,7 @@ import { PendingAction } from "../secretFolders/types";
 import { secretSnapshotKeys } from "../secretSnapshots/queries";
 import { secretKeys } from "./queries";
 import {
+  TArchiveSecretsDTO,
   TCreateSecretBatchDTO,
   TCreateSecretsV3DTO,
   TDeleteSecretBatchDTO,
@@ -164,6 +165,54 @@ export const useUpdateSecretV3 = ({
       });
     },
     ...options
+  });
+};
+
+export const useArchiveSecrets = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ archivedCount: number }, object, TArchiveSecretsDTO>({
+    mutationFn: async (dto) => {
+      const { data } = await apiRequest.post("/api/v4/secrets/archive", dto);
+      return data;
+    },
+    onSuccess: (_, { projectId, secretPath }) => {
+      queryClient.invalidateQueries({
+        queryKey: dashboardKeys.getDashboardSecrets({ projectId, secretPath })
+      });
+      queryClient.invalidateQueries({ queryKey: secretKeys.archived({ projectId, secretPath }) });
+    }
+  });
+};
+
+export const useRestoreSecrets = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ restoredCount: number }, object, TArchiveSecretsDTO>({
+    mutationFn: async (dto) => {
+      const { data } = await apiRequest.post("/api/v4/secrets/restore", dto);
+      return data;
+    },
+    onSuccess: (_, { projectId, secretPath }) => {
+      queryClient.invalidateQueries({
+        queryKey: dashboardKeys.getDashboardSecrets({ projectId, secretPath })
+      });
+      queryClient.invalidateQueries({ queryKey: secretKeys.archived({ projectId, secretPath }) });
+    }
+  });
+};
+
+export const useDeleteArchivedSecrets = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ deletedCount: number }, object, TArchiveSecretsDTO>({
+    mutationFn: async (dto) => {
+      const { data } = await apiRequest.delete("/api/v4/secrets/archived", { data: dto });
+      return data;
+    },
+    onSuccess: (_, { projectId, secretPath }) => {
+      queryClient.invalidateQueries({ queryKey: secretKeys.archived({ projectId, secretPath }) });
+    }
   });
 };
 
