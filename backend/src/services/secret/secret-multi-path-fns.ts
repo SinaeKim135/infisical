@@ -25,8 +25,8 @@ export const normalizeSecretPaths = (paths: string[]): string[] => {
     }
     const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
     const path = withLeadingSlash === "/" ? "/" : removeTrailingSlash(withLeadingSlash);
-    if (!seen.has(path)) {
-      seen.add(path);
+    if (!seen.has(trimmed)) {
+      seen.add(trimmed);
       normalized.push(path);
     }
   }
