@@ -27,10 +27,8 @@ export const projectActivitySummaryDALFactory = (db: TDbClient) => {
         // reports secrets, so rows without a secret version are not ours to count.
         .whereNotNull(`${TableName.FolderCommitChanges}.secretVersionId`)
         .select(
-          // an edit is also written as an "add" and is told apart by isUpdate, so a create has to
-          // exclude those or every edit would be counted twice
           db.raw(
-            `COUNT(CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? AND "${TableName.FolderCommitChanges}"."isUpdate" = false THEN 1 END)::int AS "secretsCreated"`,
+            `COUNT(CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? THEN 1 END)::int AS "secretsCreated"`,
             [ChangeType.ADD]
           ),
           db.raw(
