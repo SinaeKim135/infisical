@@ -2962,22 +2962,6 @@ export const secretV2BridgeServiceFactory = ({
       throw new NotFoundError({ message: "One or more archived secrets not found" });
     }
 
-    // An archived key does not hold its name, so the name may have been taken again while the
-    // secret sat in the trash. Restoring on top of a live key would put two active rows on the
-    // same (folder, key) — nothing in the schema stops that.
-    const activeWithSameKey = await secretDAL.find({
-      folderId: folder.id,
-      type: SecretType.Shared,
-      $in: { key: secretNames }
-    });
-
-    const liveKeys = activeWithSameKey.filter((el) => !el.archivedAt).map((el) => el.key);
-    if (liveKeys.length) {
-      throw new BadRequestError({
-        message: `Cannot restore: a secret named ${liveKeys.join(", ")} already exists at this path`
-      });
-    }
-
     await secretDAL.setArchivedAt(
       toRestore.map((el) => el.id),
       null
