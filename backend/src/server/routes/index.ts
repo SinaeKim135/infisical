@@ -1737,7 +1737,7 @@ export const registerRoutes = async (
     telemetryService
   });
 
-  const secretDriftService = secretDriftServiceFactory({ secretV2BridgeService });
+  const secretDriftService = secretDriftServiceFactory({ secretV2BridgeService, kmsService });
 
   const secretService = secretServiceFactory({
     folderDAL,

@@ -1,5 +1,7 @@
 import { crypto } from "@app/lib/crypto/cryptography";
 import { BadRequestError } from "@app/lib/errors";
+import { TKmsServiceFactory } from "@app/services/kms/kms-service";
+import { KmsDataKey } from "@app/services/kms/kms-types";
 import { PersonalOverridesBehavior } from "@app/services/secret/secret-types";
 import { TSecretV2BridgeServiceFactory } from "@app/services/secret-v2-bridge/secret-v2-bridge-service";
 
@@ -7,14 +9,13 @@ import { SecretDriftStatus, TGetSecretsDriftDTO, TSecretDriftRow } from "./secre
 
 type TSecretDriftServiceFactoryDep = {
   secretV2BridgeService: Pick<TSecretV2BridgeServiceFactory, "getSecretsMultiEnv">;
+  kmsService: Pick<TKmsServiceFactory, "createCipherPairWithDataKey">;
 };
 
 export type TSecretDriftServiceFactory = ReturnType<typeof secretDriftServiceFactory>;
 
-export const secretDriftServiceFactory = ({ secretV2BridgeService }: TSecretDriftServiceFactoryDep) => {
-  // The report says whether two environments disagree, never what either of them holds, so
-  // comparison is done on a digest of the decrypted value rather than on the value itself.
-  const $digest = (value: string) => crypto.nativeCrypto.createHash("sha256").update(value).digest("hex");
+export const secretDriftServiceFactory = ({ secretV2BridgeService, kmsService }: TSecretDriftServiceFactoryDep) => {
+  const $digest = (value: Buffer | string) => crypto.nativeCrypto.createHash("sha256").update(value).digest("hex");
 
   const getSecretsDrift = async ({
     projectId,
@@ -45,6 +46,13 @@ export const secretDriftServiceFactory = ({ secretV2BridgeService }: TSecretDrif
 
     const secrets = await secretV2BridgeService.getSecretsMultiEnv(readParams);
 
+    // The report must never hold a plaintext value longer than it has to, so each value is put
+    // back into its encrypted form and the comparison runs on that.
+    const { encryptor: secretManagerEncryptor } = await kmsService.createCipherPairWithDataKey({
+      type: KmsDataKey.SecretManager,
+      projectId
+    });
+
     // key -> environment -> digest
     const digestsByKey = new Map<string, Map<string, string>>();
 
@@ -54,7 +62,10 @@ export const secretDriftServiceFactory = ({ secretV2BridgeService }: TSecretDrif
       if (secret.secretValueHidden) return;
 
       const byEnvironment = digestsByKey.get(secret.secretKey) ?? new Map<string, string>();
-      byEnvironment.set(secret.environment, $digest(secret.secretValue));
+      byEnvironment.set(
+        secret.environment,
+        $digest(secretManagerEncryptor({ plainText: Buffer.from(secret.secretValue) }).cipherTextBlob)
+      );
       digestsByKey.set(secret.secretKey, byEnvironment);
     });
 
