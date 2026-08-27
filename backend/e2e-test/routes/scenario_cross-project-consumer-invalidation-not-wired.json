@@ -1,0 +1,271 @@
+[
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\": \"CrossRef Rotation Shared\", \"slug\": \"cpref-rotate-src\"}",
+    "ResponseBody": "{\"project\": {\"id\": \"chained\", \"slug\": \"cpref-rotate-src\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 201,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:50.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"chained\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"original-value-v1\"}",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"ROTATE_KEY\", \"secretValue\": \"original-value-v1\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/ROTATE_KEY",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:51.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"projectName\": \"CrossRef Rotation Consumer\", \"slug\": \"cpref-rotate-dst\"}",
+    "ResponseBody": "{\"project\": {\"id\": \"chained2\", \"slug\": \"cpref-rotate-dst\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v1/projects",
+    "QueryParams": {},
+    "StatusCode": 201,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:52.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"chained2\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"${cpref-rotate-src::dev.ROTATE_KEY}\"}",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"CONSUMER_REF\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "POST",
+    "Path": "/api/v3/secrets/raw/CONSUMER_REF",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:53.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secrets\": [{\"secretKey\": \"CONSUMER_REF\", \"secretValue\": \"original-value-v1\"}]}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v3/secrets/raw",
+    "QueryParams": {
+      "workspaceId": [
+        "chained2"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:54.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "{\"workspaceId\": \"chained\", \"environment\": \"dev\", \"secretPath\": \"/\", \"secretValue\": \"rotated-value-v2\"}",
+    "ResponseBody": "{\"secret\": {\"secretKey\": \"ROTATE_KEY\", \"secretValue\": \"rotated-value-v2\"}}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "PATCH",
+    "Path": "/api/v3/secrets/raw/ROTATE_KEY",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:55.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{\"secrets\": [{\"secretKey\": \"CONSUMER_REF\", \"secretValue\": \"rotated-value-v2\"}]}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "GET",
+    "Path": "/api/v3/secrets/raw",
+    "QueryParams": {
+      "workspaceId": [
+        "chained2"
+      ],
+      "environment": [
+        "dev"
+      ],
+      "secretPath": [
+        "/"
+      ],
+      "expandSecretReferences": [
+        "true"
+      ]
+    },
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:56.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/projects/{projectId}",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:57.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  },
+  {
+    "Source": "192.168.65.1:39998",
+    "Destination": "localhost",
+    "RequestBody": "",
+    "ResponseBody": "{}",
+    "RequestHeaders": {
+      "Content-Type": [
+        "application/json"
+      ],
+      "Authorization": [
+        "Bearer SKYRAMP_PLACEHOLDER_TOKEN"
+      ]
+    },
+    "ResponseHeaders": {
+      "Content-Type": [
+        "application/json"
+      ]
+    },
+    "Method": "DELETE",
+    "Path": "/api/v1/projects/{projectId}",
+    "QueryParams": {},
+    "StatusCode": 200,
+    "Port": 8080,
+    "Timestamp": "2026-08-27T14:57:58.168Z",
+    "Scheme": "http",
+    "scenarioName": "cross-project-consumer-invalidation-not-wired"
+  }
+]
