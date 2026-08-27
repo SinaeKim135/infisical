@@ -73,9 +73,6 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
   const invalidateSecretCacheByProjectId = async (projectId: string, tx?: Knex) => {
     await $invalidateOneProject(projectId, tx);
-
-    const consumers = await keyStore.hashGetAll(SecretServiceCacheKeys.getCrossProjectConsumers(projectId));
-    await Promise.all(Object.keys(consumers ?? {}).map((consumerId) => $invalidateOneProject(consumerId, tx)));
   };
 
   const findOne = async (filter: Partial<TSecretsV2>, tx?: Knex) => {
