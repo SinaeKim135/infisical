@@ -3430,7 +3430,7 @@ export const secretV2BridgeServiceFactory = ({
       actorId,
       actorOrgId,
       actorAuthMethod,
-      secrets: secretKeys.map((secretKey: string) => ({ secretKey, type: SecretType.Personal }))
+      secrets: secretKeys.map((secretKey: string) => ({ secretKey, type: SecretType.Shared }))
     });
 
     return { resetCount: deletedSecrets.length, secretKeys };
