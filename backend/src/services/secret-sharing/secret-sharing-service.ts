@@ -920,26 +920,6 @@ export const secretSharingServiceFactory = ({
       throw new NotFoundError({ message: `Shared secret with ID '${sharedSecretId}' not found` });
     }
 
-    // the link id is known to every recipient, so membership alone is not enough — the history
-    // names who else opened the link, and that belongs to whoever created it
-    if (actor === ActorType.USER) {
-      if (sharedSecret.userId !== actorId) {
-        throw new ForbiddenRequestError({
-          message: "User does not have permission to read this shared secret's access history"
-        });
-      }
-    } else if (actor === ActorType.IDENTITY) {
-      if (sharedSecret.identityId !== actorId) {
-        throw new ForbiddenRequestError({
-          message: "Identity does not have permission to read this shared secret's access history"
-        });
-      }
-    } else {
-      throw new ForbiddenRequestError({
-        message: "User does not have permission to read this shared secret's access history"
-      });
-    }
-
     if (sharedSecret.orgId && sharedSecret.orgId !== orgId) {
       throw new ForbiddenRequestError({
         message: "User does not have permission to read this shared secret's access history"
