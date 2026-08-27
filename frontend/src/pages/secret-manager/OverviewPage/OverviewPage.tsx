@@ -212,6 +212,7 @@ import {
   EnvironmentSelect,
   FolderBreadcrumb,
   FolderTableRow,
+  MultiPathDownloadEnvButton,
   ResourceCount,
   ResourceFilter,
   ResourceSearchInput,
@@ -2447,6 +2448,13 @@ const OverviewPageContent = () => {
               <div className="flex flex-wrap items-center gap-3">
                 {userAvailableEnvs.length > 0 && (
                   <DownloadEnvButton
+                    secretPath={secretPath}
+                    environments={visibleEnvs}
+                    projectId={projectId}
+                  />
+                )}
+                {userAvailableEnvs.length > 0 && (
+                  <MultiPathDownloadEnvButton
                     secretPath={secretPath}
                     environments={visibleEnvs}
                     projectId={projectId}
