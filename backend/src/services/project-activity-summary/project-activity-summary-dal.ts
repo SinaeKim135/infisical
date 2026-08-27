@@ -23,9 +23,6 @@ export const projectActivitySummaryDALFactory = (db: TDbClient) => {
         .where(`${TableName.Environment}.projectId`, projectId)
         .whereNull(`${TableName.Environment}.deleteAfter`)
         .where(`${TableName.FolderCommitChanges}.createdAt`, ">=", sevenDaysAgo)
-        // the same table records folder changes, which carry a folderVersionId instead. This card
-        // reports secrets, so rows without a secret version are not ours to count.
-        .whereNotNull(`${TableName.FolderCommitChanges}.secretVersionId`)
         .select(
           db.raw(
             `COUNT(CASE WHEN "${TableName.FolderCommitChanges}"."changeType" = ? THEN 1 END)::int AS "secretsCreated"`,
