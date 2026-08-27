@@ -513,7 +513,6 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
           `${TableName.SecretRotationV2SecretMapping}.secretId`
         )
         .whereIn("folderId", folderIds)
-        .whereNull(`${TableName.SecretV2}.archivedAt`)
         .where((bd) => {
           if (filters?.search) {
             void bd.whereILike(`${TableName.SecretV2}.key`, `%${filters?.search}%`);
