@@ -3481,7 +3481,8 @@ export const secretServiceFactory = ({
     return {
       projectId: project.id,
       isSourceUpdated,
-      isDestinationUpdated
+      isDestinationUpdated,
+      movedOverridesCount: 0
     };
   };
 

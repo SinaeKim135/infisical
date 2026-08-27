@@ -333,6 +333,39 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
     }
   };
 
+  // Personal overrides are rows of their own, one per user, tied to a shared secret only by
+  // (folderId, key). Nothing in the schema moves them when their parent moves, so the caller
+  // has to re-point every user's row — not just its own.
+  const findPersonalOverridesByKeys = async (folderId: string, keys: string[], userId?: string, tx?: Knex) => {
+    if (!keys.length) return [];
+
+    try {
+      const docs = await (tx || db.replicaNode())(TableName.SecretV2)
+        .where({ folderId, type: SecretType.Personal, userId })
+        .whereIn("key", keys)
+        .select(selectAllTableCols(TableName.SecretV2));
+
+      return docs;
+    } catch (error) {
+      throw new DatabaseError({ error, name: "Find personal overrides by keys" });
+    }
+  };
+
+  const movePersonalOverrides = async (overrideIds: string[], destinationFolderId: string, tx?: Knex) => {
+    if (!overrideIds.length) return 0;
+
+    try {
+      const updated = await (tx || db)(TableName.SecretV2)
+        .whereIn("id", overrideIds)
+        .update({ folderId: destinationFolderId })
+        .returning("id");
+
+      return updated.length;
+    } catch (error) {
+      throw new DatabaseError({ error, name: "Move personal overrides" });
+    }
+  };
+
   const deleteMany = async (
     data: Array<{ key: string; type: SecretType }>,
     folderId: string,
@@ -353,7 +386,8 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
             if (el.type === SecretType.Shared) {
               void bd.orWhere({
                 key: el.key,
-                type: SecretType.Personal
+                type: SecretType.Personal,
+                userId
               });
             }
           });
@@ -1176,6 +1210,8 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
   return {
     ...secretOrm,
+    findPersonalOverridesByKeys,
+    movePersonalOverrides,
     update,
     bulkUpdate,
     bulkUpdateById,
