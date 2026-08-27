@@ -136,6 +136,7 @@ import { TPkiSubscriberServiceFactory } from "@app/services/pki-subscriber/pki-s
 import { TPkiSyncServiceFactory } from "@app/services/pki-sync/pki-sync-service";
 import { TPkiTemplatesServiceFactory } from "@app/services/pki-templates/pki-templates-service";
 import { TProjectServiceFactory } from "@app/services/project/project-service";
+import { TProjectActivitySummaryServiceFactory } from "@app/services/project-activity-summary/project-activity-summary-service";
 import { TProjectBotServiceFactory } from "@app/services/project-bot/project-bot-service";
 import { TProjectEnvServiceFactory } from "@app/services/project-env/project-env-service";
 import { TProjectKeyServiceFactory } from "@app/services/project-key/project-key-service";
@@ -274,6 +275,7 @@ declare module "fastify" {
       project: TProjectServiceFactory;
       projectMembership: TProjectMembershipServiceFactory;
       projectEnv: TProjectEnvServiceFactory;
+      projectActivitySummary: TProjectActivitySummaryServiceFactory;
       projectKey: TProjectKeyServiceFactory;
       secret: TSecretServiceFactory;
       secretReplication: TSecretReplicationServiceFactory;
