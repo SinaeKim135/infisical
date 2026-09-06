@@ -22,6 +22,7 @@ import { BadRequestError, NotFoundError } from "@app/lib/errors";
 import { groupBy, unique } from "@app/lib/fn";
 import { logger } from "@app/lib/logger";
 import { getAllSecretReferences } from "@app/services/secret-v2-bridge/secret-reference-fns";
+import { parseReferenceTokens } from "@app/services/secret-v2-bridge/secret-reference-parse-fns";
 import {
   fnSecretBulkInsert as fnSecretV2BridgeBulkInsert,
   fnSecretBulkUpdate as fnSecretV2BridgeBulkUpdate
@@ -215,7 +216,9 @@ type TInterpolateSecretArg = {
 };
 
 const MAX_SECRET_REFERENCE_DEPTH = 5;
-const INTERPOLATION_PATTERN_STRING = String.raw`\${([a-zA-Z0-9-_.]+)}`;
+// Backslash is allowed so dots inside a secret key can be escaped (e.g.
+// ${dev.folder.app\.db\.host}); see parseReferenceTokens for the split rules.
+const INTERPOLATION_PATTERN_STRING = String.raw`\${([a-zA-Z0-9-_.\\]+)}`;
 const INTERPOLATION_TEST_REGEX = new RE2(INTERPOLATION_PATTERN_STRING);
 
 export const interpolateSecrets = ({ projectId, secretEncKey, secretDAL, folderDAL }: TInterpolateSecretArg) => {
@@ -287,7 +290,7 @@ export const interpolateSecrets = ({ projectId, secretEncKey, secretDAL, folderD
     if (refs.length > 0) {
       for (const interpolationSyntax of refs) {
         const interpolationKey = interpolationSyntax.slice(2, interpolationSyntax.length - 1);
-        const entities = interpolationKey.trim().split(".");
+        const entities = parseReferenceTokens(interpolationKey.trim());
 
         if (entities.length === 1) {
           const [secretKey] = entities;
