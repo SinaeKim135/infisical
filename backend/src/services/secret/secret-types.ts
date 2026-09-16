@@ -232,6 +232,11 @@ export type TGetSecretsRawDTO = {
   ifNoneMatch?: string;
 } & TProjectPermission;
 
+export type TGetSecretsRawMultiPathDTO = Omit<TGetSecretsRawDTO, "path" | "ifNoneMatch"> & {
+  /** Secret paths to fetch, in ascending precedence order (later paths win on key conflicts) */
+  paths: string[];
+};
+
 export type TGetSecretAccessListDTO = {
   environment: string;
   secretPath: string;
