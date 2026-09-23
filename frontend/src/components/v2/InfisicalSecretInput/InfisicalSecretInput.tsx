@@ -8,6 +8,7 @@ import { createNotification } from "@app/components/notifications";
 import { ROUTE_PATHS } from "@app/const/routes";
 import { useProject, useProjectPermission } from "@app/context";
 import { ProjectPermissionSecretActions } from "@app/context/ProjectPermissionContext/types";
+import { escapeSecretReferenceKey } from "@app/helpers/secretReferences";
 import { useDebounce, useToggle } from "@app/hooks";
 import { useGetProjectFolders, useGetProjectSecrets } from "@app/hooks/api";
 import { hasSecretReadValueOrDescribePermission } from "@app/lib/fn/permission";
@@ -217,12 +218,16 @@ export const InfisicalSecretInput = forwardRef<HTMLTextAreaElement, Props>(
       const rhsValue = value.slice(
         rightBracketIndex !== -1 ? rightBracketIndex + 1 : currentCursorPosition
       );
+      // a selected secret key may contain dots — escape them so the reference
+      // grammar treats the whole key as one token instead of a path separator
+      const selectedSlug =
+        selectedSuggestion.type === ReferenceType.SECRET
+          ? escapeSecretReferenceKey(selectedSuggestion.slug)
+          : selectedSuggestion.slug;
       // mid will be computed value inside the interpolation
       const mid = suggestionSource.isDeep
-        ? `${suggestionSource.value.slice(0, -suggestionSource.predicate.length || undefined)}${
-            selectedSuggestion.slug
-          }`
-        : selectedSuggestion.slug;
+        ? `${suggestionSource.value.slice(0, -suggestionSource.predicate.length || undefined)}${selectedSlug}`
+        : selectedSlug;
       // whether we should append . or closing bracket on selecting suggestion
       const closingSymbol = getClosingSymbol(
         selectedSuggestion.type === ReferenceType.SECRET,
