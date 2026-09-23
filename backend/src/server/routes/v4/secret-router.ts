@@ -125,6 +125,19 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
         projectId: z.string().trim().optional().describe(RAW_SECRETS.LIST.projectId),
         environment: z.string().trim().optional().describe(RAW_SECRETS.LIST.environment),
         secretPath: z.string().trim().default("/").transform(removeTrailingSlash).describe(RAW_SECRETS.LIST.secretPath),
+        secretPaths: z
+          .string()
+          .trim()
+          .optional()
+          .describe(RAW_SECRETS.LIST.secretPaths)
+          .transform((el) =>
+            el
+              ? el
+                  .split(",")
+                  .map((path) => path.trim())
+                  .filter(Boolean)
+              : undefined
+          ),
         viewSecretValue: convertStringBoolean(true).describe(RAW_SECRETS.LIST.viewSecretValue),
         expandSecretReferences: convertStringBoolean(true).describe(RAW_SECRETS.LIST.expand),
         recursive: convertStringBoolean().describe(RAW_SECRETS.LIST.recursive),
@@ -161,6 +174,19 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
                 .array()
             })
             .array()
+            .optional(),
+          merge: z
+            .object({
+              paths: z.string().array(),
+              overrides: z
+                .object({
+                  secretKey: z.string(),
+                  type: z.string(),
+                  winningPath: z.string(),
+                  overriddenPaths: z.string().array()
+                })
+                .array()
+            })
             .optional()
         })
       }
@@ -169,6 +195,7 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
     handler: async (req, reply) => {
       // just for delivery hero usecase
       let { secretPath, environment, projectId } = req.query;
+      let { secretPaths } = req.query;
       if (req.auth.actor === ActorType.SERVICE) {
         const scope = ServiceTokenScopes.parse(req.auth.serviceToken.scopes);
         const isSingleScope = scope.length === 1;
@@ -176,12 +203,19 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
           secretPath = scope[0].secretPath;
           environment = scope[0].environment;
           projectId = req.auth.serviceToken.projectId;
+          // a path-pinned service token is scoped to exactly one path
+          secretPaths = undefined;
         }
       }
 
       if (!projectId || !environment) throw new BadRequestError({ message: "Missing project id or environment" });
 
-      const result = await server.services.secret.getSecretsRaw({
+      const useMultiPath = Boolean(secretPaths?.length);
+      if (useMultiPath && req.query.recursive) {
+        throw new BadRequestError({ message: "secretPaths cannot be combined with recursive" });
+      }
+
+      const baseDto = {
         actorId: req.permission.id,
         actor: req.permission.type,
         actorOrgId: req.permission.orgId,
@@ -195,15 +229,27 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
         actorAuthMethod: req.permission.authMethod,
         projectId,
         viewSecretValue: req.query.viewSecretValue,
-        path: secretPath,
         metadataFilter: req.query.metadataFilter,
         includeImports: req.query.includeImports,
-        recursive: req.query.recursive,
-        tagSlugs: req.query.tagSlugs,
-        ifNoneMatch: req.headers["if-none-match"]
-      });
+        tagSlugs: req.query.tagSlugs
+      };
 
-      const { secrets, imports, etag, notModified } = result;
+      const result = useMultiPath
+        ? await server.services.secret.getSecretsRawMultiPath({
+            ...baseDto,
+            paths: secretPaths as string[]
+          })
+        : await server.services.secret.getSecretsRaw({
+            ...baseDto,
+            path: secretPath,
+            recursive: req.query.recursive,
+            ifNoneMatch: req.headers["if-none-match"]
+          });
+
+      const { secrets, imports } = result;
+      const etag = "etag" in result ? result.etag : undefined;
+      const notModified = "notModified" in result ? result.notModified : undefined;
+      const merge = "merge" in result ? result.merge : undefined;
 
       if (etag) {
         void reply.header("ETag", etag);
@@ -221,7 +267,7 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
           type: EventType.GET_SECRETS,
           metadata: {
             environment,
-            secretPath: req.query.secretPath,
+            secretPath: useMultiPath ? (secretPaths as string[]).join(",") : req.query.secretPath,
             numberOfSecrets: secrets.length
           }
         }
@@ -236,7 +282,7 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
             numberOfSecrets: secrets.length,
             projectId,
             environment,
-            secretPath: req.query.secretPath,
+            secretPath: useMultiPath ? (secretPaths as string[]).join(",") : req.query.secretPath,
             channel: getUserAgentType(req.headers["user-agent"]),
             ...req.auditLogInfo,
             actorType: req.permission.type
@@ -244,7 +290,7 @@ export const registerSecretRouter = async (server: FastifyZodProvider) => {
         });
       }
 
-      return { secrets, imports };
+      return { secrets, imports, merge };
     }
   });
 

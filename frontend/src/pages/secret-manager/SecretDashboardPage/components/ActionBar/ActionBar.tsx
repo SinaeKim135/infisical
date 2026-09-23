@@ -112,6 +112,7 @@ import { CreateDynamicSecretForm } from "./CreateDynamicSecretForm";
 import { CreateSecretImportForm } from "./CreateSecretImportForm";
 import { FolderForm } from "./FolderForm";
 import { MoveSecretsModal } from "./MoveSecretsModal";
+import { MultiPathDownloadModal } from "./MultiPathDownloadModal";
 import { VaultSecretImportModal } from "./VaultSecretImportModal";
 
 type TParsedEnv = { value: string; comments: string[]; secretPath?: string; secretKey: string }[];
@@ -187,7 +188,8 @@ export const ActionBar = ({
     "replicateFolder",
     "confirmUpload",
     "requestAccess",
-    "importFromVault"
+    "importFromVault",
+    "multiPathDownload"
   ] as const);
   const isProtectedBranch = Boolean(protectedBranchPolicyName);
   const { subscription } = useSubscription();
@@ -1105,6 +1107,31 @@ export const ActionBar = ({
                     </Button>
                   )}
                 </ProjectPermissionCan>
+                <ProjectPermissionCan
+                  I={ProjectPermissionActions.Read}
+                  a={subject(ProjectPermissionSub.Secrets, {
+                    environment,
+                    secretPath,
+                    secretName: "*",
+                    secretTags: ["*"]
+                  })}
+                >
+                  {(isAllowed) => (
+                    <Button
+                      leftIcon={<FontAwesomeIcon icon={faDownload} className="pr-2" />}
+                      onClick={() => {
+                        handlePopUpOpen("multiPathDownload");
+                        handlePopUpClose("misc");
+                      }}
+                      isDisabled={!isAllowed}
+                      variant="outline_bg"
+                      className="h-10 text-left"
+                      isFullWidth
+                    >
+                      Download Multi-Path (.env)
+                    </Button>
+                  )}
+                </ProjectPermissionCan>
                 {hasVaultConnection && (
                   <ProjectPermissionCan
                     I={ProjectPermissionActions.Create}
@@ -1273,6 +1300,13 @@ export const ActionBar = ({
             />
           )
         }
+      />
+      <MultiPathDownloadModal
+        isOpen={popUp.multiPathDownload.isOpen}
+        onOpenChange={(isOpen) => handlePopUpToggle("multiPathDownload", isOpen)}
+        projectId={projectId}
+        environment={environment}
+        secretPath={secretPath}
       />
       <MoveSecretsModal
         popUp={popUp}
