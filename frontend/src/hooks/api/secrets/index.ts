@@ -1,5 +1,6 @@
 export {
   useBackfillSecretReference,
+  useBulkImportSecrets,
   useCreateSecretBatch,
   useCreateSecretV3,
   useDeleteSecretBatch,

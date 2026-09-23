@@ -145,6 +145,7 @@ import { TRoleServiceFactory } from "@app/services/role/role-service";
 import { TSecretServiceFactory } from "@app/services/secret/secret-service";
 import { TSecretBlindIndexServiceFactory } from "@app/services/secret-blind-index/secret-blind-index-service";
 import { TSecretFolderServiceFactory } from "@app/services/secret-folder/secret-folder-service";
+import { TSecretBulkImportServiceFactory } from "@app/services/secret-bulk-import/secret-bulk-import-service";
 import { TSecretImportServiceFactory } from "@app/services/secret-import/secret-import-service";
 import { TSecretReplicationServiceFactory } from "@app/services/secret-replication/secret-replication-service";
 import { TSecretSharingServiceFactory } from "@app/services/secret-sharing/secret-sharing-service";
@@ -280,6 +281,7 @@ declare module "fastify" {
       secretTag: TSecretTagServiceFactory;
       secretValidationRule: TSecretValidationRuleServiceFactory;
       secretImport: TSecretImportServiceFactory;
+      secretBulkImport: TSecretBulkImportServiceFactory;
       projectBot: TProjectBotServiceFactory;
       folder: TSecretFolderServiceFactory;
       integration: TIntegrationServiceFactory;
