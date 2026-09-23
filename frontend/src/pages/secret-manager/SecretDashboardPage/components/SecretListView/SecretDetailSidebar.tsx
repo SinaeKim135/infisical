@@ -5,6 +5,7 @@ import { faCircleQuestion } from "@fortawesome/free-regular-svg-icons";
 import {
   faCheckCircle,
   faCopy,
+  faLink,
   faPlus,
   faProjectDiagram,
   faSearch,
@@ -65,6 +66,7 @@ import { SecretV3RawSanitized, WsTag } from "@app/hooks/api/types";
 import { hasSecretReadValueOrDescribePermission } from "@app/lib/fn/permission";
 import { camelCaseToSpaces } from "@app/lib/fn/string";
 
+import { CrossProjectReferenceModal } from "./CrossProjectReferenceModal";
 import { HIDDEN_SECRET_VALUE } from "./SecretItem";
 import { formSchema, SecretActionType, TFormSchema } from "./SecretListView.utils";
 import { SecretVersionItem } from "./SecretVersionItem";
@@ -219,6 +221,7 @@ export const SecretDetailSidebar = ({
   const { handlePopUpToggle, popUp, handlePopUpOpen } = usePopUp([
     "secretAccessUpgradePlan",
     "secretReferenceTree",
+    "crossProjectReference",
     "redactSecretValue"
   ] as const);
 
@@ -379,6 +382,18 @@ export const SecretDetailSidebar = ({
         </ModalContent>
       </Modal>
 
+      <CrossProjectReferenceModal
+        isOpen={popUp.crossProjectReference.isOpen}
+        onOpenChange={(isModalOpen) => handlePopUpToggle("crossProjectReference", isModalOpen)}
+        onInsert={(reference) => {
+          const currentValue = getValues("value") || "";
+          setValue("value", `${currentValue}${reference}`, {
+            shouldDirty: true,
+            shouldValidate: true
+          });
+        }}
+      />
+
       <Drawer
         onOpenChange={async (state) => {
           if (isOpen && isDirty) {
@@ -485,6 +500,24 @@ export const SecretDetailSidebar = ({
                           >
                             Share
                           </Button>
+                        </Tooltip>
+                        <Tooltip content="Insert a reference to a secret in another project">
+                          <IconButton
+                            ariaLabel="Insert cross-project reference"
+                            variant="outline_bg"
+                            className="px-2 py-[0.43rem]"
+                            isDisabled={
+                              isReadOnly ||
+                              !isAllowed ||
+                              isOverridden ||
+                              secret?.isRotatedSecret ||
+                              isLoadingSecretValue ||
+                              isErrorFetchingSecretValue
+                            }
+                            onClick={() => handlePopUpOpen("crossProjectReference")}
+                          >
+                            <FontAwesomeIcon icon={faLink} />
+                          </IconButton>
                         </Tooltip>
                       </div>
                     </FormControl>

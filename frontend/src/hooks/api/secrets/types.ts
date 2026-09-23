@@ -275,6 +275,8 @@ export type TSecretReferenceTraceNode = {
   value?: string;
   environment: string;
   secretPath: string;
+  // Present when the reference resolves to a secret in a different project (cross-project reference).
+  projectSlug?: string;
   children: TSecretReferenceTraceNode[];
 };
 
