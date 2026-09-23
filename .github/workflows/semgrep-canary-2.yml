@@ -1,0 +1,12 @@
+name: semgrep-canary-2
+on:
+  issues:
+    types: [opened]
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log issue
+        run: |
+          echo "Triaging issue: ${{ github.event.issue.title }}"
+          echo "Reported by: ${{ github.event.issue.user.login }}"
