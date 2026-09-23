@@ -106,6 +106,7 @@ import {
   useSelectedSecrets
 } from "../../SecretMainPage.store";
 import { Filter, RowType } from "../../SecretMainPage.types";
+import { ArchivedSecretsModal } from "../ArchivedSecretsModal";
 import { CollapsibleSecretImports } from "../SecretListView/CollapsibleSecretImports";
 import { ReplicateFolderFromBoard } from "./ReplicateFolderFromBoard/ReplicateFolderFromBoard";
 import { CreateDynamicSecretForm } from "./CreateDynamicSecretForm";
@@ -885,6 +886,9 @@ export const ActionBar = ({
           <IconButton variant="outline_bg" ariaLabel="Reveal" onClick={onVisibilityToggle}>
             <FontAwesomeIcon icon={isVisible ? faEyeSlash : faEye} />
           </IconButton>
+        </div>
+        <div>
+          <ArchivedSecretsModal projectId={projectId} />
         </div>
         <div>
           <ProjectPermissionCan
