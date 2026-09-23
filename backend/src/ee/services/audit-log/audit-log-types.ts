@@ -164,6 +164,7 @@ export enum EventType {
   CREATE_SECRETS = "create-secrets",
   UPDATE_SECRET = "update-secret",
   UPDATE_SECRETS = "update-secrets",
+  SECRET_BULK_IMPORT = "secret-bulk-import",
   MOVE_SECRETS = "move-secrets",
   DELETE_SECRET = "delete-secret",
   DELETE_SECRETS = "delete-secrets",
@@ -1063,6 +1064,19 @@ interface UpdateSecretBatchEvent {
       secretPath?: string;
       secretTags?: string[];
     }>;
+  };
+}
+
+interface SecretBulkImportEvent {
+  type: EventType.SECRET_BULK_IMPORT;
+  metadata: {
+    defaultEnvironment: string;
+    defaultSecretPath: string;
+    format: string;
+    created: number;
+    overwritten: number;
+    skipped: number;
+    parseErrorCount: number;
   };
 }
 
@@ -6303,6 +6317,7 @@ export type Event =
   | CreateSecretBatchEvent
   | UpdateSecretEvent
   | UpdateSecretBatchEvent
+  | SecretBulkImportEvent
   | MoveSecretsEvent
   | DeleteSecretEvent
   | DeleteSecretBatchEvent
