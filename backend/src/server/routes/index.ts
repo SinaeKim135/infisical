@@ -421,6 +421,8 @@ import { secretQueueFactory } from "@app/services/secret/secret-queue";
 import { secretServiceFactory } from "@app/services/secret/secret-service";
 import { secretVersionDALFactory } from "@app/services/secret/secret-version-dal";
 import { secretVersionTagDALFactory } from "@app/services/secret/secret-version-tag-dal";
+import { secretArchiveDALFactory } from "@app/services/secret-archive/secret-archive-dal";
+import { secretArchiveServiceFactory } from "@app/services/secret-archive/secret-archive-service";
 import { secretBlindIndexDALFactory } from "@app/services/secret-blind-index/secret-blind-index-dal";
 import { secretBlindIndexServiceFactory } from "@app/services/secret-blind-index/secret-blind-index-service";
 import { secretFolderDALFactory } from "@app/services/secret-folder/secret-folder-dal";
@@ -528,6 +530,7 @@ export const registerRoutes = async (
   const projectSshConfigDAL = projectSshConfigDALFactory(db);
   const projectMembershipDAL = projectMembershipDALFactory(db);
   const projectEnvDAL = projectEnvDALFactory(db);
+  const secretArchiveDAL = secretArchiveDALFactory(db);
   const projectKeyDAL = projectKeyDALFactory(db);
   const projectBotDAL = projectBotDALFactory(db);
 
@@ -1734,6 +1737,11 @@ export const registerRoutes = async (
     folderCommitService,
     notificationService,
     telemetryService
+  });
+
+  const secretArchiveService = secretArchiveServiceFactory({
+    secretArchiveDAL,
+    permissionService
   });
 
   const secretService = secretServiceFactory({
@@ -3184,6 +3192,7 @@ export const registerRoutes = async (
     projectKey: projectKeyService,
     projectEnv: projectEnvService,
     secret: secretService,
+    secretArchive: secretArchiveService,
     secretReplication: secretReplicationService,
     secretTag: secretTagService,
     secretValidationRule: secretValidationRuleService,

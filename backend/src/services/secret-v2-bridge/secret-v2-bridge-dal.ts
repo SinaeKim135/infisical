@@ -378,6 +378,8 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
       const secs = await (tx || db.replicaNode())(TableName.SecretV2)
         .where({ folderId })
+        // archived (soft-deleted) secrets are hidden from the normal listing
+        .whereNull(`${TableName.SecretV2}.archivedAt`)
         .where((bd) => {
           void bd
             .whereNull(`${TableName.SecretV2}.userId`)
@@ -486,6 +488,8 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
           `${TableName.SecretRotationV2SecretMapping}.secretId`
         )
         .whereIn("folderId", folderIds)
+        // archived (soft-deleted) secrets are excluded from counts
+        .whereNull(`${TableName.SecretV2}.archivedAt`)
         .where((bd) => {
           if (filters?.search) {
             void bd.whereILike(`${TableName.SecretV2}.key`, `%${filters?.search}%`);
@@ -566,6 +570,8 @@ export const secretV2BridgeDALFactory = ({ db, keyStore }: TSecretV2DalArg) => {
 
       const query = (tx || db.replicaNode())(TableName.SecretV2)
         .whereIn(`${TableName.SecretV2}.folderId`, folderIds)
+        // archived (soft-deleted) secrets are hidden from the normal listing
+        .whereNull(`${TableName.SecretV2}.archivedAt`)
         .where((bd) => {
           if (filters?.search) {
             void bd.whereILike(`${TableName.SecretV2}.key`, `%${filters?.search}%`);
