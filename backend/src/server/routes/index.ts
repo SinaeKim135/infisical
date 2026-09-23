@@ -437,6 +437,7 @@ import { secretSyncServiceFactory } from "@app/services/secret-sync/secret-sync-
 import { secretTagDALFactory } from "@app/services/secret-tag/secret-tag-dal";
 import { secretTagServiceFactory } from "@app/services/secret-tag/secret-tag-service";
 import { secretV2BridgeDALFactory } from "@app/services/secret-v2-bridge/secret-v2-bridge-dal";
+import { secretBulkImportServiceFactory } from "@app/services/secret-bulk-import/secret-bulk-import-service";
 import { secretV2BridgeServiceFactory } from "@app/services/secret-v2-bridge/secret-v2-bridge-service";
 import { secretVersionV2BridgeDALFactory } from "@app/services/secret-v2-bridge/secret-version-dal";
 import { secretVersionV2TagBridgeDALFactory } from "@app/services/secret-v2-bridge/secret-version-tag-dal";
@@ -1701,6 +1702,15 @@ export const registerRoutes = async (
     reminderService,
     keyStore,
     secretValidationRuleService
+  });
+
+  const secretBulkImportService = secretBulkImportServiceFactory({
+    secretV2BridgeService,
+    secretV2BridgeDAL,
+    folderDAL,
+    folderService,
+    projectEnvDAL,
+    permissionService
   });
 
   const secretApprovalRequestService = secretApprovalRequestServiceFactory({
@@ -3190,6 +3200,7 @@ export const registerRoutes = async (
     rateLimit: rateLimitService,
     folder: folderService,
     secretImport: secretImportService,
+    secretBulkImport: secretBulkImportService,
     projectBot: projectBotService,
     integration: integrationService,
     integrationAuth: integrationAuthService,
