@@ -37,7 +37,12 @@ const SanitizedOidcConfigSchema = OidcConfigsSchema.pick({
   isActive: true,
   allowedEmailDomains: true,
   manageGroupMemberships: true,
-  jwtSignatureAlgorithm: true
+  jwtSignatureAlgorithm: true,
+  groupMembershipReconciliationEnabled: true,
+  groupMembershipReconciliationIntervalMinutes: true,
+  lastGroupReconciliationAt: true,
+  lastGroupReconciliationStatus: true,
+  lastGroupReconciliationMessage: true
 });
 
 export const registerOidcRouter = async (server: FastifyZodProvider) => {
@@ -105,11 +110,10 @@ export const registerOidcRouter = async (server: FastifyZodProvider) => {
           domain ? "domain" : "orgSlug",
           callbackPort
         );
-        return (
-          passport.authenticate(oidcStrategy as Strategy, {
-            scope: "profile email openid"
-          }) as any
-        )(req, res);
+        // Scope (incl. offline_access when near-real-time group reconciliation is
+        // enabled) is set on the strategy's authorization params in getOrgAuthStrategy,
+        // so it is intentionally not overridden here.
+        return (passport.authenticate(oidcStrategy as Strategy, {}) as any)(req, res);
       }
     ],
     handler: () => {}
@@ -215,7 +219,12 @@ export const registerOidcRouter = async (server: FastifyZodProvider) => {
           orgId: true,
           allowedEmailDomains: true,
           manageGroupMemberships: true,
-          jwtSignatureAlgorithm: true
+          jwtSignatureAlgorithm: true,
+          groupMembershipReconciliationEnabled: true,
+          groupMembershipReconciliationIntervalMinutes: true,
+          lastGroupReconciliationAt: true,
+          lastGroupReconciliationStatus: true,
+          lastGroupReconciliationMessage: true
         }).extend({
           clientId: z.string(),
           clientSecret: z.string()
@@ -282,7 +291,9 @@ export const registerOidcRouter = async (server: FastifyZodProvider) => {
           jwtSignatureAlgorithm: z
             .nativeEnum(OIDCJWTSignatureAlgorithm)
             .optional()
-            .describe(OidcSSo.UPDATE_CONFIG.jwtSignatureAlgorithm)
+            .describe(OidcSSo.UPDATE_CONFIG.jwtSignatureAlgorithm),
+          groupMembershipReconciliationEnabled: z.boolean().optional(),
+          groupMembershipReconciliationIntervalMinutes: z.coerce.number().int().min(1).max(1440).optional()
         })
         .partial()
         .merge(z.object({ organizationId: z.string().describe(OidcSSo.UPDATE_CONFIG.organizationId) })),
@@ -299,7 +310,12 @@ export const registerOidcRouter = async (server: FastifyZodProvider) => {
           orgId: true,
           allowedEmailDomains: true,
           isActive: true,
-          manageGroupMemberships: true
+          manageGroupMemberships: true,
+          groupMembershipReconciliationEnabled: true,
+          groupMembershipReconciliationIntervalMinutes: true,
+          lastGroupReconciliationAt: true,
+          lastGroupReconciliationStatus: true,
+          lastGroupReconciliationMessage: true
         })
       }
     },
@@ -385,7 +401,9 @@ export const registerOidcRouter = async (server: FastifyZodProvider) => {
             .nativeEnum(OIDCJWTSignatureAlgorithm)
             .optional()
             .default(OIDCJWTSignatureAlgorithm.RS256)
-            .describe(OidcSSo.CREATE_CONFIG.jwtSignatureAlgorithm)
+            .describe(OidcSSo.CREATE_CONFIG.jwtSignatureAlgorithm),
+          groupMembershipReconciliationEnabled: z.boolean().optional().default(false),
+          groupMembershipReconciliationIntervalMinutes: z.coerce.number().int().min(1).max(1440).optional().default(15)
         })
         .superRefine((data, ctx) => {
           if (data.configurationType === OIDCConfigurationType.CUSTOM) {

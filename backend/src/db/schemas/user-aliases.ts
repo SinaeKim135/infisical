@@ -5,6 +5,8 @@
 
 import { z } from "zod";
 
+import { zodBuffer } from "@app/lib/zod";
+
 import { TImmutableDBKeys } from "./models";
 
 export const UserAliasesSchema = z.object({
@@ -17,7 +19,8 @@ export const UserAliasesSchema = z.object({
   orgId: z.string().uuid().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
-  isEmailVerified: z.boolean().default(false).nullable().optional()
+  isEmailVerified: z.boolean().default(false).nullable().optional(),
+  encryptedRefreshToken: zodBuffer.nullable().optional()
 });
 
 export type TUserAliases = z.infer<typeof UserAliasesSchema>;

@@ -33,7 +33,12 @@ export const OidcConfigsSchema = z.object({
   manageGroupMemberships: z.boolean().default(false),
   encryptedOidcClientId: zodBuffer,
   encryptedOidcClientSecret: zodBuffer,
-  jwtSignatureAlgorithm: z.string().default("RS256")
+  jwtSignatureAlgorithm: z.string().default("RS256"),
+  groupMembershipReconciliationEnabled: z.boolean().default(false),
+  groupMembershipReconciliationIntervalMinutes: z.coerce.number().default(15),
+  lastGroupReconciliationAt: z.date().nullable().optional(),
+  lastGroupReconciliationStatus: z.string().nullable().optional(),
+  lastGroupReconciliationMessage: z.string().nullable().optional()
 });
 
 export type TOidcConfigs = z.infer<typeof OidcConfigsSchema>;

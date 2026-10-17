@@ -105,7 +105,8 @@ export enum QueueName {
   PamDiscoveryScan = "pam-discovery-scan",
   CaAutoRenewal = "ca-auto-renewal",
   CertificateCleanup = "certificate-cleanup",
-  DigiCertOrderPolling = "digicert-order-polling"
+  DigiCertOrderPolling = "digicert-order-polling",
+  OidcGroupMembershipReconciliation = "oidc-group-membership-reconciliation"
 }
 
 export enum QueueJobs {
@@ -177,7 +178,8 @@ export enum QueueJobs {
   CaAdcsInstall = "ca-adcs-install-job",
   CertificateCleanup = "certificate-cleanup-job",
   DailySecretSyncRetry = "daily-secret-sync-retry-job",
-  DigiCertOrderPolling = "digicert-order-polling-job"
+  DigiCertOrderPolling = "digicert-order-polling-job",
+  OidcGroupMembershipReconciliation = "oidc-group-membership-reconciliation-job"
 }
 
 export type TQueueOptions = {
@@ -549,6 +551,10 @@ export type TQueueJobTypes = {
   };
   [QueueName.DigiCertOrderPolling]: {
     name: QueueJobs.DigiCertOrderPolling;
+    payload: undefined;
+  };
+  [QueueName.OidcGroupMembershipReconciliation]: {
+    name: QueueJobs.OidcGroupMembershipReconciliation;
     payload: undefined;
   };
 };

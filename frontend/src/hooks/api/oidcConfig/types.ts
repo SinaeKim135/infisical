@@ -14,6 +14,11 @@ export type OIDCConfigData = {
   allowedEmailDomains?: string;
   manageGroupMemberships: boolean;
   jwtSignatureAlgorithm: OIDCJWTSignatureAlgorithm;
+  groupMembershipReconciliationEnabled: boolean;
+  groupMembershipReconciliationIntervalMinutes: number;
+  lastGroupReconciliationAt?: string | null;
+  lastGroupReconciliationStatus?: string | null;
+  lastGroupReconciliationMessage?: string | null;
 };
 
 export enum OIDCJWTSignatureAlgorithm {

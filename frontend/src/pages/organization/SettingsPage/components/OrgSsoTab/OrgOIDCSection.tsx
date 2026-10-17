@@ -1,10 +1,11 @@
+import { useEffect, useState } from "react";
 import { faInfoCircle, faWarning } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { UpgradePlanModal } from "@app/components/license/UpgradePlanModal";
 import { createNotification } from "@app/components/notifications";
 import { OrgPermissionCan } from "@app/components/permissions";
-import { Button, Switch, Tooltip } from "@app/components/v2";
+import { Button, FormControl, Input, Switch, Tooltip } from "@app/components/v2";
 import {
   OrgPermissionActions,
   OrgPermissionSubjects,
@@ -63,6 +64,62 @@ export const OrgOIDCSection = (): JSX.Element => {
 
     createNotification({
       text: `Successfully ${value ? "enabled" : "disabled"} OIDC group membership mapping`,
+      type: "success"
+    });
+  };
+
+  const [reconciliationInterval, setReconciliationInterval] = useState<string>("15");
+
+  useEffect(() => {
+    if (data?.groupMembershipReconciliationIntervalMinutes) {
+      setReconciliationInterval(String(data.groupMembershipReconciliationIntervalMinutes));
+    }
+  }, [data?.groupMembershipReconciliationIntervalMinutes]);
+
+  const handleReconciliationToggle = async (value: boolean) => {
+    if (!currentOrg?.id) return;
+
+    if (!subscription?.oidcSSO) {
+      handlePopUpOpen("upgradePlan");
+      return;
+    }
+
+    await mutateAsync({
+      organizationId: currentOrg?.id,
+      groupMembershipReconciliationEnabled: value
+    });
+
+    createNotification({
+      text: `Successfully ${value ? "enabled" : "disabled"} near-real-time group deprovisioning`,
+      type: "success"
+    });
+  };
+
+  const getReconciliationStatusColor = (status?: string | null) => {
+    if (status === "success") return "text-green";
+    if (status === "failed") return "text-red";
+    return "text-yellow";
+  };
+
+  const handleReconciliationIntervalSave = async () => {
+    if (!currentOrg?.id) return;
+
+    const parsed = Number(reconciliationInterval);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 1440) {
+      createNotification({
+        text: "Reconciliation interval must be between 1 and 1440 minutes",
+        type: "error"
+      });
+      return;
+    }
+
+    await mutateAsync({
+      organizationId: currentOrg?.id,
+      groupMembershipReconciliationIntervalMinutes: parsed
+    });
+
+    createNotification({
+      text: "Successfully updated reconciliation interval",
       type: "success"
     });
   };
@@ -191,6 +248,113 @@ export const OrgOIDCSection = (): JSX.Element => {
           Infisical will manage user group memberships based on the OIDC provider
         </p>
       </div>
+      {data?.manageGroupMemberships && (
+        <div className="py-4">
+          <div className="mb-2 flex justify-between">
+            <div className="text-md flex items-center text-mineshaft-100">
+              <span>Near-Real-Time Group Deprovisioning</span>
+              <Tooltip
+                className="max-w-lg"
+                content={
+                  <>
+                    <p>
+                      When enabled, Infisical periodically re-fetches each user&apos;s group
+                      membership from the OIDC provider and reconciles their access — without
+                      waiting for the user to log in again. If a user is removed from a mapped group
+                      in the provider, their project/org access is revoked promptly and their cached
+                      permissions are invalidated.
+                    </p>
+                    <p className="mt-4">
+                      This requires the provider to issue a refresh token (the{" "}
+                      <code>offline_access</code> scope is requested automatically once enabled).
+                      Users who have not logged in since enabling this feature are reconciled on
+                      their next login.
+                    </p>
+                  </>
+                }
+              >
+                <FontAwesomeIcon
+                  icon={faInfoCircle}
+                  size="sm"
+                  className="mt-0.5 ml-1 inline-block text-mineshaft-400"
+                />
+              </Tooltip>
+            </div>
+            <OrgPermissionCan I={OrgPermissionActions.Edit} a={OrgPermissionSubjects.Sso}>
+              {(isAllowed) => (
+                <Switch
+                  id="enable-oidc-reconciliation"
+                  isChecked={data?.groupMembershipReconciliationEnabled ?? false}
+                  onCheckedChange={(value) => handleReconciliationToggle(value)}
+                  isDisabled={!isAllowed}
+                />
+              )}
+            </OrgPermissionCan>
+          </div>
+          <p className="text-sm text-mineshaft-300">
+            Revoke access on a recurring schedule when users are removed from groups in the OIDC
+            provider
+          </p>
+
+          {data?.groupMembershipReconciliationEnabled && (
+            <div className="mt-4">
+              <OrgPermissionCan I={OrgPermissionActions.Edit} a={OrgPermissionSubjects.Sso}>
+                {(isAllowed) => (
+                  <div className="flex items-end gap-2">
+                    <FormControl
+                      label="Reconciliation interval (minutes)"
+                      className="mb-0 max-w-xs"
+                      helperText="How often group membership is reconciled (1–1440 minutes)."
+                    >
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        value={reconciliationInterval}
+                        isDisabled={!isAllowed}
+                        onChange={(e) => setReconciliationInterval(e.target.value)}
+                      />
+                    </FormControl>
+                    <Button
+                      variant="outline_bg"
+                      isDisabled={!isAllowed}
+                      onClick={() => handleReconciliationIntervalSave()}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                )}
+              </OrgPermissionCan>
+
+              <div className="mt-4 rounded-md border border-mineshaft-600 bg-mineshaft-800 p-3">
+                <p className="text-sm font-medium text-mineshaft-100">Last sync status</p>
+                {data?.lastGroupReconciliationAt ? (
+                  <div className="mt-1 text-sm text-mineshaft-300">
+                    <p>
+                      <span className="text-mineshaft-400">Status: </span>
+                      <span className={getReconciliationStatusColor(data.lastGroupReconciliationStatus)}>
+                        {data.lastGroupReconciliationStatus ?? "unknown"}
+                      </span>
+                    </p>
+                    <p>
+                      <span className="text-mineshaft-400">Last run: </span>
+                      {new Date(data.lastGroupReconciliationAt).toLocaleString()}
+                    </p>
+                    {data.lastGroupReconciliationMessage && (
+                      <p className="mt-1 text-mineshaft-400">{data.lastGroupReconciliationMessage}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-mineshaft-400">
+                    Reconciliation has not run yet. The first run will occur within the configured
+                    interval.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <OIDCModal
         popUp={popUp}
         handlePopUpClose={handlePopUpClose}
