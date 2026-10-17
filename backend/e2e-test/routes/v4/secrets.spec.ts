@@ -694,5 +694,67 @@ describe.each([{ auth: AuthMode.JWT }, { auth: AuthMode.IDENTITY_ACCESS_TOKEN }]
         )
       );
     });
+
+    test("Get secrets across multiple paths merged with positional precedence", async () => {
+      const sharedKey = { key: "MULTI-PATH-SEC", value: "shared-value", comment: "" };
+      await createSecret({ path: "/", ...sharedKey });
+      await createSecret({ path: "/nested1/nested2/folder", key: sharedKey.key, value: "svc-value", comment: "" });
+
+      const mergedRes = await testServer.inject({
+        method: "GET",
+        url: `/api/v4/secrets`,
+        headers: {
+          authorization: `Bearer ${authToken}`
+        },
+        query: {
+          environment: seedData1.environment.slug,
+          projectId: seedData1.projectV3.id,
+          secretPaths: "/,/nested1/nested2/folder"
+        }
+      });
+      expect(mergedRes.statusCode).toBe(200);
+      const mergedPayload = JSON.parse(mergedRes.payload);
+
+      expect(mergedPayload.merge).toEqual({
+        paths: ["/", "/nested1/nested2/folder"],
+        overrides: [
+          {
+            secretKey: sharedKey.key,
+            type: SecretType.Shared,
+            winningPath: "/nested1/nested2/folder",
+            overriddenPaths: ["/"]
+          }
+        ]
+      });
+
+      const mergedSecrets: (TRawSecret & { secretPath: string })[] = mergedPayload.secrets;
+      const winningSecrets = mergedSecrets.filter((el) => el.secretKey === sharedKey.key);
+      expect(winningSecrets).toHaveLength(1);
+      expect(winningSecrets[0].secretValue).toBe("svc-value");
+      expect(winningSecrets[0].secretPath).toBe("/nested1/nested2/folder");
+
+      await deleteSecret({ path: "/", key: sharedKey.key });
+      await deleteSecret({ path: "/nested1/nested2/folder", key: sharedKey.key });
+    });
+
+    test("Rejects secretPaths combined with recursive", async () => {
+      const conflictRes = await testServer.inject({
+        method: "GET",
+        url: `/api/v4/secrets`,
+        headers: {
+          authorization: `Bearer ${authToken}`
+        },
+        query: {
+          environment: seedData1.environment.slug,
+          projectId: seedData1.projectV3.id,
+          secretPaths: "/,/nested1/nested2/folder",
+          recursive: "true"
+        }
+      });
+      expect(conflictRes.statusCode).toBe(400);
+      const conflictPayload = JSON.parse(conflictRes.payload);
+      expect(conflictPayload.error).toBe("BadRequestError");
+      expect(conflictPayload.message).toBe("secretPaths cannot be combined with recursive");
+    });
   }
 );
