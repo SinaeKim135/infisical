@@ -1,3 +1,4 @@
+// testbot connection + license check (no-op comment, safe to remove)
 import { registerBddNockRouter } from "@bdd_routes/bdd-nock-router";
 import type { ClickHouseClient } from "@clickhouse/client";
 import { CronJob } from "cron";
