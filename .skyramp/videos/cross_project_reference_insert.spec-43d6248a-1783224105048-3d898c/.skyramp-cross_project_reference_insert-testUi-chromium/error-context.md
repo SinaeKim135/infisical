@@ -1,0 +1,220 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "TestOrg Organization" [ref=e8] [cursor=pointer]:
+          - img [ref=e9]
+          - generic: TestOrg
+          - generic [ref=e13]: Organization
+        - button "switch-org" [ref=e14] [cursor=pointer]:
+          - img
+      - generic [ref=e15]:
+        - link "shared-infra Secrets Management" [ref=e16] [cursor=pointer]:
+          - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/9046f427-93ac-4bf8-a8c0-617e70c2e3bf/overview
+          - img [ref=e17]
+          - generic [ref=e20]: shared-infra
+          - generic [ref=e21]: Secrets Management
+        - button "switch-project" [ref=e22] [cursor=pointer]:
+          - img
+    - generic [ref=e23]: Free
+    - link "Server Console" [ref=e24] [cursor=pointer]:
+      - /url: /admin
+      - img
+      - generic [ref=e25]: Server Console
+    - group [ref=e26]:
+      - button "Help" [ref=e27] [cursor=pointer]:
+        - img
+      - button "Notifications" [ref=e28] [cursor=pointer]:
+        - img
+      - button "User menu" [ref=e29] [cursor=pointer]:
+        - img
+  - generic [ref=e30]:
+    - generic [ref=e32]:
+      - generic [ref=e35]:
+        - button "Organization" [ref=e36] [cursor=pointer]:
+          - img [ref=e37]
+          - generic [ref=e39]: Organization
+        - list [ref=e40]:
+          - listitem [ref=e41]:
+            - link "Overview" [ref=e42] [cursor=pointer]:
+              - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/9046f427-93ac-4bf8-a8c0-617e70c2e3bf/overview
+              - img [ref=e43]
+              - generic [ref=e46]: Overview
+          - listitem [ref=e47]:
+            - button "Approvals" [ref=e48] [cursor=pointer]:
+              - img [ref=e49]
+              - generic [ref=e52]: Approvals
+              - img [ref=e53]
+          - listitem [ref=e55]:
+            - button "Integrations" [ref=e56] [cursor=pointer]:
+              - img [ref=e57]
+              - generic [ref=e59]: Integrations
+              - img [ref=e60]
+          - listitem [ref=e62]:
+            - button "Access Control" [ref=e63] [cursor=pointer]:
+              - img [ref=e64]
+              - generic [ref=e66]: Access Control
+              - img [ref=e67]
+          - listitem [ref=e69]:
+            - link "Insights" [ref=e70] [cursor=pointer]:
+              - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/9046f427-93ac-4bf8-a8c0-617e70c2e3bf/insights
+              - img [ref=e71]
+              - generic [ref=e73]: Insights
+          - listitem [ref=e74]:
+            - link "Audit Logs" [ref=e75] [cursor=pointer]:
+              - /url: /organizations/db7e0e08-bd1a-4085-9809-b468efb192e5/projects/secret-management/9046f427-93ac-4bf8-a8c0-617e70c2e3bf/audit-logs
+              - img [ref=e76]
+              - generic [ref=e79]: Audit Logs
+          - listitem [ref=e80]:
+            - button "Settings" [ref=e81] [cursor=pointer]:
+              - img [ref=e82]
+              - generic [ref=e85]: Settings
+              - img [ref=e86]
+      - button "Toggle Sidebar" [ref=e89] [cursor=pointer]:
+        - img
+        - generic [ref=e90]: Toggle Sidebar
+    - main [ref=e91]:
+      - generic [ref=e96]:
+        - generic [ref=e98]:
+          - heading "Project Overview" [level=1] [ref=e101]:
+            - img [ref=e102]
+            - text: Project Overview
+          - paragraph [ref=e106]:
+            - text: Inject your secrets using
+            - link "Infisical CLI" [ref=e107] [cursor=pointer]:
+              - /url: https://infisical.com/docs/cli/overview
+            - text: ","
+            - link "Infisical API" [ref=e108] [cursor=pointer]:
+              - /url: https://infisical.com/docs/api-reference/overview/introduction
+            - text: ","
+            - link "Infisical SDKs" [ref=e109] [cursor=pointer]:
+              - /url: https://infisical.com/docs/sdks/overview
+            - text: ", and"
+            - link "more" [ref=e110] [cursor=pointer]:
+              - /url: https://infisical.com/docs/documentation/getting-started/introduction
+            - text: . Click the Explore button to view the secret details section.
+        - generic [ref=e111]:
+          - generic [ref=e112]: 0 Selected
+          - button "Unselect All" [ref=e113]
+          - button "Move" [ref=e114]:
+            - button "Move" [ref=e115] [cursor=pointer]:
+              - img
+              - text: Move
+          - button "Delete" [ref=e116]:
+            - button "Delete" [ref=e117] [cursor=pointer]:
+              - img
+              - text: Delete
+        - generic [ref=e118]:
+          - generic [ref=e120]:
+            - generic [ref=e121]:
+              - button [ref=e122]:
+                - combobox [ref=e123] [cursor=pointer]:
+                  - generic [ref=e124]: Development
+                  - img
+              - navigation "breadcrumb" [ref=e126]:
+                - list [ref=e127]:
+                  - listitem [ref=e128]:
+                    - img [ref=e130] [cursor=pointer]
+            - generic [ref=e132]:
+              - button [ref=e133]:
+                - button [ref=e134] [cursor=pointer]:
+                  - img
+              - button [ref=e135]:
+                - button [ref=e136] [cursor=pointer]:
+                  - img
+              - group [ref=e137]:
+                - button [ref=e138] [cursor=pointer]:
+                  - img
+                - group [ref=e140]:
+                  - textbox "Search by secret or folder name..." [ref=e141]
+              - group [ref=e142]:
+                - button "Add Secret" [ref=e143]:
+                  - button "Add Secret" [ref=e144] [cursor=pointer]:
+                    - img
+                    - text: Add Secret
+                - button [ref=e145] [cursor=pointer]:
+                  - img
+          - generic [ref=e146]:
+            - table [ref=e148]:
+              - rowgroup [ref=e149]:
+                - row "Name Value Reveal Values Commit History Batch Edit Mode" [ref=e150]:
+                  - cell [ref=e151]:
+                    - checkbox [ref=e152] [cursor=pointer]
+                  - cell "Name" [ref=e153] [cursor=pointer]:
+                    - text: Name
+                    - img [ref=e154]
+                  - cell "Value Reveal Values Commit History Batch Edit Mode" [ref=e156]:
+                    - generic [ref=e157]:
+                      - text: Value
+                      - generic [ref=e158]:
+                        - button "Reveal Values" [ref=e159] [cursor=pointer]:
+                          - img
+                          - text: Reveal Values
+                        - button "Commit History" [ref=e160] [cursor=pointer]:
+                          - img
+                          - text: Commit History
+                        - button "Batch Edit Mode" [ref=e161]:
+                          - button "Batch Edit Mode" [ref=e162] [cursor=pointer]:
+                            - img
+                            - text: Batch Edit Mode
+              - rowgroup [ref=e163]:
+                - row "TLS_CERT *************************" [ref=e164]:
+                  - cell [ref=e165]:
+                    - img [ref=e166]
+                  - cell "TLS_CERT" [ref=e170]:
+                    - textbox "Secret name" [ref=e172]: TLS_CERT
+                  - cell "*************************" [ref=e173]:
+                    - generic [ref=e174]:
+                      - generic [ref=e178]:
+                        - generic:
+                          - code: "*************************"
+                        - textbox "secret value" [ref=e179]: "*************************"
+                      - generic:
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - button:
+                            - img
+                        - button:
+                          - img
+            - table
+            - generic [ref=e180]:
+              - generic [ref=e182]:
+                - img [ref=e183]
+                - generic [ref=e187]: "1"
+              - generic [ref=e188]:
+                - generic [ref=e189]: 1 - 1 of 1
+                - button [ref=e190] [cursor=pointer]:
+                  - img
+              - generic [ref=e191]:
+                - button [disabled]:
+                  - img
+                - button [disabled]:
+                  - img
+                - button [disabled]:
+                  - img
+                - button [disabled]:
+                  - img
+```
